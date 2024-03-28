@@ -1,5 +1,5 @@
-<h1>Hi 👋, I'm Angelo Gomez</h1>
-<h3 align="center">A passionate software developer from Perú</h3>
+<h1>> Hi, I'm Angelo Gomez 🙋‍♂️</h1>
+<h2>Jr FullStack Java Developer</h2>
 
 <h3 align="left">Connect with me: <a href="mailto:gangelos630@gmail.com">Send mail</a></h3>
 <p align="left">
