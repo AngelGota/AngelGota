@@ -1,5 +1,5 @@
-<h1>> Hi, I'm Angelo Gomez 🙋‍♂️</h1>
-<h2>Jr FullStack Java Developer</h2>
+<h1 class="markdown-heading" dir="auto">> Hi, I'm Angelo Gomez 🙋‍♂️</h1>
+<h2 class="heading-element" dir="auto">Jr FullStack Java Developer</h2>
 
 <h3 align="left">Connect with me: <a href="mailto:gangelos630@gmail.com">Send mail</a></h3>
 <p align="left">
