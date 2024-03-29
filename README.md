@@ -1,7 +1,8 @@
-# Hi, I'm Angelo Gomez 🙋‍♂️
+# <img align="center" src="https://media.giphy.com/media/26Fxy3Iz1ari8oytO/giphy.gif" width="100" /> Hi, I'm Angelo Gomez 🙋‍♂️ <img align="center" src="https://media.giphy.com/media/26Fxy3Iz1ari8oytO/giphy.gif" width="100" />
 
-<h2 class="heading-element" dir="auto">> Jr FullStack Java Developer</h2>
-<h3 align="left">Connect with me: <a href="mailto:gangelos630@gmail.com">Send mail</a></h3>
+
+
+
 <p align="left">
 </p>
 
