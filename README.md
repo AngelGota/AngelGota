@@ -1,5 +1,5 @@
 # 👋Hi, I'm Angelo and welcome to my repositories
-### Jr Full Stack Dev
+### Full Stack Dev
 
  I am a computation and informatics student, I am looking for my first job placement. I have 2 years developing java desktop and web applications. But in the last year I have dedicated myself to develop web applications in spring boot. Applying design patterns: MVC and REST API. 
 
