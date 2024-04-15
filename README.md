@@ -3,7 +3,7 @@
 
  I am a computation and informatics student, I am looking for my first job placement. I have 2 years developing java desktop and web applications. But in the last year I have dedicated myself to develop web applications in spring boot. Applying design patterns: MVC and REST API. 
 
- I consider that I have the necessary knowledge as a junior developer to start with my first work experience.
+ I consider that I have the necessary knowledge as a full stack developer to start with my first work experience.
  
  In addition, I study various technologies to maintain solid knowledge on how to use them and if I have to adapt, do so faster and more efficiently.
 
