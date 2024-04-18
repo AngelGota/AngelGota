@@ -9,7 +9,7 @@
 
 ## Languages, frameworks and tools:
 <div style="display: flex; justify-content: center;">
-  <a href="https://skillicons.dev">
+  <a>
     <img src="https://skillicons.dev/icons?i=idea" />
     <img src="https://skillicons.dev/icons?i=atom" />
     <img src="https://skillicons.dev/icons?i=eclipse" />
