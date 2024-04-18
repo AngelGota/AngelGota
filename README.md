@@ -9,8 +9,7 @@
 
 ## Languages, frameworks and tools:
 <div style="display: flex; justify-content: center;">
-  <a>
-    <img src="https://skillicons.dev/icons?i=idea" />
+  <img src="https://skillicons.dev/icons?i=idea" />
     <img src="https://skillicons.dev/icons?i=atom" />
     <img src="https://skillicons.dev/icons?i=eclipse" />
     <img src="https://skillicons.dev/icons?i=sublime" />
@@ -44,7 +43,6 @@
     <img src="https://skillicons.dev/icons?i=obsidian" />
     <img src="https://skillicons.dev/icons?i=py" />
     <img src="https://skillicons.dev/icons?i=selenium" />
-  </a>
 </div>
 
 ## My GitHub Stats:
