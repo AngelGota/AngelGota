@@ -8,26 +8,44 @@
  In addition, I study various technologies to maintain solid knowledge on how to use them and if I have to adapt, do so faster and more efficiently.
 
 ## Languages, frameworks and tools:
-
 <div style="display: flex; justify-content: center;">
   <a href="https://skillicons.dev">
-    <img src="https://skillicons.dev/icons?i=idea,atom,eclipse,sublime,androidstudio,postman,spring,vscode,visualstudio,wordpress,java,swift,cs,bootstrap,html,css,js,jquery,dotnet,figma,git,gradle,hibernate,maven,bash,mysql,mongodb,sqlite,kotlin,npm,nodejs,obsidian,py,selenium" style="max-width: 100%; height: auto; margin: 10px;">
+    <img src="https://skillicons.dev/icons?i=idea" />
+    <img src="https://skillicons.dev/icons?i=atom" />
+    <img src="https://skillicons.dev/icons?i=eclipse" />
+    <img src="https://skillicons.dev/icons?i=sublime" />
+    <img src="https://skillicons.dev/icons?i=androidstudio" />
+    <img src="https://skillicons.dev/icons?i=postman" />
+    <img src="https://skillicons.dev/icons?i=spring" />
+    <img src="https://skillicons.dev/icons?i=vscode" />
+    <img src="https://skillicons.dev/icons?i=visualstudio" />
+    <img src="https://skillicons.dev/icons?i=wordpress" />
+    <img src="https://skillicons.dev/icons?i=java" />
+    <img src="https://skillicons.dev/icons?i=swift" />
+    <img src="https://skillicons.dev/icons?i=cs" />
+    <img src="https://skillicons.dev/icons?i=bootstrap" />
+    <img src="https://skillicons.dev/icons?i=html" />
+    <img src="https://skillicons.dev/icons?i=css" />
+    <img src="https://skillicons.dev/icons?i=js" />
+    <img src="https://skillicons.dev/icons?i=jquery" />
+    <img src="https://skillicons.dev/icons?i=dotnet" />
+    <img src="https://skillicons.dev/icons?i=figma" />
+    <img src="https://skillicons.dev/icons?i=git" />
+    <img src="https://skillicons.dev/icons?i=gradle" />
+    <img src="https://skillicons.dev/icons?i=hibernate" />
+    <img src="https://skillicons.dev/icons?i=maven" />
+    <img src="https://skillicons.dev/icons?i=bash" />
+    <img src="https://skillicons.dev/icons?i=mysql" />
+    <img src="https://skillicons.dev/icons?i=mongodb" />
+    <img src="https://skillicons.dev/icons?i=sqlite" />
+    <img src="https://skillicons.dev/icons?i=kotlin" />
+    <img src="https://skillicons.dev/icons?i=npm" />
+    <img src="https://skillicons.dev/icons?i=nodejs" />
+    <img src="https://skillicons.dev/icons?i=obsidian" />
+    <img src="https://skillicons.dev/icons?i=py" />
+    <img src="https://skillicons.dev/icons?i=selenium" />
   </a>
 </div>
-
-<style>
-  @media only screen and (max-width: 600px) {
-    img {
-      max-width: 80%;
-    }
-  }
-
-  @media only screen and (max-width: 400px) {
-    img {
-      max-width: 60%;
-    }
-  }
-</style>
 
 ## My GitHub Stats:
 <div style="display: flex; justify-content: center; flex-wrap: wrap;">
