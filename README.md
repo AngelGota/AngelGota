@@ -8,11 +8,26 @@
  In addition, I study various technologies to maintain solid knowledge on how to use them and if I have to adapt, do so faster and more efficiently.
 
 ## Languages, frameworks and tools:
+
 <div style="display: flex; justify-content: center;">
   <a href="https://skillicons.dev">
-    <img src="https://skillicons.dev/icons?i=idea,atom,eclipse,sublime,androidstudio,postman,spring,vscode,visualstudio,wordpress,java,swift,cs,bootstrap,html,css,js,jquery,dotnet,figma,git,gradle,hibernate,maven,bash,mysql,mongodb,sqlite,kotlin,npm,nodejs,obsidian,py,selenium" />
+    <img src="https://skillicons.dev/icons?i=idea,atom,eclipse,sublime,androidstudio,postman,spring,vscode,visualstudio,wordpress,java,swift,cs,bootstrap,html,css,js,jquery,dotnet,figma,git,gradle,hibernate,maven,bash,mysql,mongodb,sqlite,kotlin,npm,nodejs,obsidian,py,selenium" style="max-width: 100%; height: auto; margin: 10px;">
   </a>
 </div>
+
+<style>
+  @media only screen and (max-width: 600px) {
+    img {
+      max-width: 80%;
+    }
+  }
+
+  @media only screen and (max-width: 400px) {
+    img {
+      max-width: 60%;
+    }
+  }
+</style>
 
 ## My GitHub Stats:
 <div style="display: flex; justify-content: center; flex-wrap: wrap;">
