@@ -8,8 +8,9 @@
  In addition, I study various technologies to maintain solid knowledge on how to use them and if I have to adapt, do so faster and more efficiently.
 
 ## Languages, frameworks and tools:
-<div style="display: flex; justify-content: center;">
-  <img src="https://skillicons.dev/icons?i=idea" />
+
+<p align="center">
+    <img src="https://skillicons.dev/icons?i=idea" />
     <img src="https://skillicons.dev/icons?i=atom" />
     <img src="https://skillicons.dev/icons?i=eclipse" />
     <img src="https://skillicons.dev/icons?i=sublime" />
@@ -27,6 +28,11 @@
     <img src="https://skillicons.dev/icons?i=css" />
     <img src="https://skillicons.dev/icons?i=js" />
     <img src="https://skillicons.dev/icons?i=jquery" />
+    <img src="https://skillicons.dev/icons?i=npm" />
+    <img src="https://skillicons.dev/icons?i=nodejs" />
+    <img src="https://skillicons.dev/icons?i=mongodb" />
+    <img src="https://skillicons.dev/icons?i=react" />
+    <img src="https://skillicons.dev/icons?i=cloudflare" />
     <img src="https://skillicons.dev/icons?i=dotnet" />
     <img src="https://skillicons.dev/icons?i=figma" />
     <img src="https://skillicons.dev/icons?i=git" />
@@ -35,14 +41,15 @@
     <img src="https://skillicons.dev/icons?i=maven" />
     <img src="https://skillicons.dev/icons?i=bash" />
     <img src="https://skillicons.dev/icons?i=mysql" />
-    <img src="https://skillicons.dev/icons?i=mongodb" />
     <img src="https://skillicons.dev/icons?i=sqlite" />
     <img src="https://skillicons.dev/icons?i=kotlin" />
-    <img src="https://skillicons.dev/icons?i=npm" />
-    <img src="https://skillicons.dev/icons?i=nodejs" />
     <img src="https://skillicons.dev/icons?i=obsidian" />
     <img src="https://skillicons.dev/icons?i=py" />
     <img src="https://skillicons.dev/icons?i=selenium" />
+</p>
+
+<div style="display: flex; justify-content: center;">
+  
 </div>
 
 ## My GitHub Stats:
