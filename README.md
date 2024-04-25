@@ -41,7 +41,8 @@
     <img src="https://skillicons.dev/icons?i=maven" />
     <img src="https://skillicons.dev/icons?i=bash" />
     <img src="https://skillicons.dev/icons?i=mysql" />
-    <img src="https://skillicons.dev/icons?i=postgres" /><img src="https://skillicons.dev/icons?i=sqlite" />
+    <img src="https://skillicons.dev/icons?i=postgres" />
+<img src="https://skillicons.dev/icons?i=sqlite" />
     <img src="https://skillicons.dev/icons?i=kotlin" />
     <img src="https://skillicons.dev/icons?i=obsidian" />
     <img src="https://skillicons.dev/icons?i=py" />
