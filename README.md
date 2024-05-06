@@ -29,9 +29,10 @@
     <img src="https://skillicons.dev/icons?i=js" />
     <img src="https://skillicons.dev/icons?i=jquery" />
     <img src="https://skillicons.dev/icons?i=npm" />
-    <img src="https://skillicons.dev/icons?i=nodejs" />
     <img src="https://skillicons.dev/icons?i=mongodb" />
+    <img src="https://skillicons.dev/icons?i=express" />
     <img src="https://skillicons.dev/icons?i=react" />
+    <img src="https://skillicons.dev/icons?i=nodejs" />
     <img src="https://skillicons.dev/icons?i=cloudflare" />
     <img src="https://skillicons.dev/icons?i=dotnet" />
     <img src="https://skillicons.dev/icons?i=figma" />
@@ -42,7 +43,7 @@
     <img src="https://skillicons.dev/icons?i=bash" />
     <img src="https://skillicons.dev/icons?i=mysql" />
     <img src="https://skillicons.dev/icons?i=postgres" />
-<img src="https://skillicons.dev/icons?i=sqlite" />
+    <img src="https://skillicons.dev/icons?i=sqlite" />
     <img src="https://skillicons.dev/icons?i=kotlin" />
     <img src="https://skillicons.dev/icons?i=obsidian" />
     <img src="https://skillicons.dev/icons?i=py" />
