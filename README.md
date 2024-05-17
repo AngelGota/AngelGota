@@ -27,12 +27,12 @@
     <img src="https://skillicons.dev/icons?i=html" />
     <img src="https://skillicons.dev/icons?i=css" />
     <img src="https://skillicons.dev/icons?i=js" />
+    <img src="https://skillicons.dev/icons?i=jest" />
     <img src="https://skillicons.dev/icons?i=jquery" />
     <img src="https://skillicons.dev/icons?i=npm" />
     <img src="https://skillicons.dev/icons?i=mongodb" />
     <img src="https://skillicons.dev/icons?i=express" />
     <img src="https://skillicons.dev/icons?i=react" />
-    <img src="https://skillicons.dev/icons?i=jest" />
     <img src="https://skillicons.dev/icons?i=nodejs" />
     <img src="https://skillicons.dev/icons?i=vite" />
     <img src="https://skillicons.dev/icons?i=tailwind" />
