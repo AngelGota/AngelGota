@@ -39,6 +39,7 @@
     <img src="https://skillicons.dev/icons?i=cloudflare" />
     <img src="https://skillicons.dev/icons?i=dotnet" />
     <img src="https://skillicons.dev/icons?i=figma" />
+    <img src="https://skillicons.dev/icons?i=github" />
     <img src="https://skillicons.dev/icons?i=git" />
     <img src="https://skillicons.dev/icons?i=gradle" />
     <img src="https://skillicons.dev/icons?i=hibernate" />
