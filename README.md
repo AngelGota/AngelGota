@@ -37,6 +37,8 @@
     <img src="https://skillicons.dev/icons?i=vite" />
     <img src="https://skillicons.dev/icons?i=tailwind" />
     <img src="https://skillicons.dev/icons?i=cloudflare" />
+    <img src="https://skillicons.dev/icons?i=netlify" />
+    <img src="https://skillicons.dev/icons?i=vercel" />
     <img src="https://skillicons.dev/icons?i=dotnet" />
     <img src="https://skillicons.dev/icons?i=figma" />
     <img src="https://skillicons.dev/icons?i=github" />
