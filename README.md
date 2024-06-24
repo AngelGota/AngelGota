@@ -16,6 +16,7 @@
     <img src="https://skillicons.dev/icons?i=css" />
     <img src="https://skillicons.dev/icons?i=js" />
     <img src="https://skillicons.dev/icons?i=react" />
+<img src="https://skillicons.dev/icons?i=next" />
     <img src="https://skillicons.dev/icons?i=bootstrap" />
     <img src="https://skillicons.dev/icons?i=tailwind" />
 </p>
