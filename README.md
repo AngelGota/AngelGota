@@ -46,6 +46,7 @@
     <img src="https://skillicons.dev/icons?i=maven" />
     <img src="https://skillicons.dev/icons?i=gradle" />
     <img src="https://skillicons.dev/icons?i=hibernate" />
+    <img src="https://skillicons.dev/icons?i=docker" />
     <img src="https://skillicons.dev/icons?i=aws" />
 </p>
 
@@ -72,6 +73,8 @@
     <img src="https://skillicons.dev/icons?i=git" />
     <img src="https://skillicons.dev/icons?i=bash" />
     <img src="https://skillicons.dev/icons?i=sqlite" />
+    <img src="https://skillicons.dev/icons?i=sqlserver" />
+    <img src="https://skillicons.dev/icons?i=oracle" />
     <img src="https://skillicons.dev/icons?i=obsidian" />
     <img src="https://skillicons.dev/icons?i=py" />
     <img src="https://skillicons.dev/icons?i=selenium" />
