@@ -55,6 +55,8 @@
 
 <p align="center">
     <img src="https://skillicons.dev/icons?i=idea" />
+    <img src="https://skillicons.dev/icons?i=phpstorm" />
+    <img src="https://skillicons.dev/icons?i=webstorm" />
     <img src="https://skillicons.dev/icons?i=atom" />
     <img src="https://skillicons.dev/icons?i=eclipse" />
     <img src="https://skillicons.dev/icons?i=sublime" />
@@ -79,7 +81,6 @@
     <img src="https://skillicons.dev/icons?i=selenium" />
     <img src="https://skillicons.dev/icons?i=laravel" />
     <img src="https://skillicons.dev/icons?i=php" />
-    <img src="https://skillicons.dev/icons?i=phpstorm" />
 </p>
 
 
