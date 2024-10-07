@@ -72,10 +72,14 @@
     <img src="https://skillicons.dev/icons?i=github" />
     <img src="https://skillicons.dev/icons?i=git" />
     <img src="https://skillicons.dev/icons?i=bash" />
+    <img src="https://skillicons.dev/icons?i=githubactions" />
     <img src="https://skillicons.dev/icons?i=sqlite" />
     <img src="https://skillicons.dev/icons?i=obsidian" />
     <img src="https://skillicons.dev/icons?i=py" />
     <img src="https://skillicons.dev/icons?i=selenium" />
+    <img src="https://skillicons.dev/icons?i=laravel" />
+    <img src="https://skillicons.dev/icons?i=php" />
+    <img src="https://skillicons.dev/icons?i=phpstorm" />
 </p>
 
 
