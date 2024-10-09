@@ -1,11 +1,11 @@
 # 👋Hi, I'm Angelo and welcome to my repositories
 ### Full Stack Dev
 
- I am a system engineer student and computer and IT technician, I am looking for my first job placement. I have 2 years developing java desktop and web applications. But in the last year I have dedicated myself to develop web applications in spring boot. Applying design patterns: MVC and REST API. 
+I am a systems engineering student and a certified IT technician. Currently, I work as a full-stack developer, contributing to the development of various projects across sectors such as Finance, Healthcare, and Agriculture. With 2 years of experience in building desktop and web applications in Java, I have spent the last year focusing on web development using Spring Boot, where I apply design patterns like MVC and RESTful API architecture.
 
- I consider that I have the necessary knowledge as a full stack developer to start with my first work experience.
- 
- In addition, I study various technologies to maintain solid knowledge on how to use them and if I have to adapt, do so faster and more efficiently.
+My skill set is multidisciplinary, and throughout my experience, I have acquired a solid understanding of the diverse requirements needed to successfully execute a wide range of projects.
+
+In addition, I consistently study new technologies to ensure I stay up to date with industry trends, enabling me to adapt quickly and efficiently when working with new tools and methodologies.
 
 ## Languages, frameworks and tools:
 
