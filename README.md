@@ -20,6 +20,11 @@ In addition, I consistently study new technologies to ensure I stay up to date w
     <img src="https://skillicons.dev/icons?i=mysql" />
     <img src="https://skillicons.dev/icons?i=mongodb" />
     <img src="https://skillicons.dev/icons?i=aws" />
+    <img src="https://skillicons.dev/icons?i=gradle" />
+    <img src="https://skillicons.dev/icons?i=hibernate" />
+    <img src="https://skillicons.dev/icons?i=docker" />
+    <img src="https://skillicons.dev/icons?i=maven" />
+    <img src="https://skillicons.dev/icons?i=cloudflare" />
 </p>
 
 ### Main stack for front-end
@@ -34,21 +39,16 @@ In addition, I consistently study new technologies to ensure I stay up to date w
     <img src="https://skillicons.dev/icons?i=bootstrap" />
     <img src="https://skillicons.dev/icons?i=react" />
     <img src="https://skillicons.dev/icons?i=next" />
-    <img src="https://skillicons.dev/icons?i=cloudflare" />
 </p>
 
 ### Secondary additional stack
 
 <p align="center">
-    <img src="https://skillicons.dev/icons?i=maven" />
     <img src="https://skillicons.dev/icons?i=dotnet" />
     <img src="https://skillicons.dev/icons?i=cs" />
     <img src="https://skillicons.dev/icons?i=kotlin" />
     <img src="https://skillicons.dev/icons?i=swift" />
     <img src="https://skillicons.dev/icons?i=androidstudio" />
-    <img src="https://skillicons.dev/icons?i=gradle" />
-    <img src="https://skillicons.dev/icons?i=hibernate" />
-    <img src="https://skillicons.dev/icons?i=docker" />
 </p>
 
 ### Diverse knowledge
