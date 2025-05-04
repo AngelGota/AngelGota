@@ -1,7 +1,7 @@
 # 👋Hi, I'm Angelo and welcome to my repositories
 ### Full Stack Dev
 
-I am a systems engineering student and a certified IT technician. Currently, I work as a full-stack developer, contributing to the development of various projects across sectors such as Finance, Healthcare, and Agriculture. With 3 years of experience in building desktop and web applications in Java, I have spent the last year focusing on web development using Spring Boot, where I apply design patterns like MVC, RESTful, SOA, Microservices(Saga) API architecture.
+I am a systems engineering student and a certified IT technician. Currently, I work as a full-stack developer, contributing to the development of various projects across sectors such as Finance, Healthcare, and Agriculture. With +3 years of experience in building desktop and web applications in Java, I have spent the last year focusing on web development using Spring Boot, where I apply design patterns like MVC, RESTful, SOA, Microservices(Saga) API architecture.
 
 My skill set is multidisciplinary, and throughout my experience, I have acquired a solid understanding of the diverse requirements needed to successfully execute a wide range of projects.
 
