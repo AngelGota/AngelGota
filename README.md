@@ -55,6 +55,7 @@ In addition, I consistently study new technologies to ensure I stay up to date w
 
 <p align="center">
     <img src="https://skillicons.dev/icons?i=idea" />
+    <img src="https://skillicons.dev/icons?i=jenkins" />
     <img src="https://skillicons.dev/icons?i=phpstorm" />
     <img src="https://skillicons.dev/icons?i=webstorm" />
     <img src="https://skillicons.dev/icons?i=atom" />
