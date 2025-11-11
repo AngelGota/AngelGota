@@ -2,7 +2,7 @@ name: Fill (except GOTA pixels) – every 5 min, unlimited commits
 
 on:
   schedule:
-    - cron: "*/10 * * * *"   # cada 5 min (UTC)
+    - cron: "*/5 * * * *"   # cada 5 minutos (UTC)
   workflow_dispatch:
 
 permissions:
@@ -24,21 +24,22 @@ jobs:
           set -euo pipefail
 
           # ---------- CONFIG ----------
-          START_G="2025-02-09"
-          START_O="2025-06-08"
-          START_T="2025-10-05"
-          START_A="2026-02-08"
+          START_G="2025-02-09"   # domingo inicio G
+          START_O="2025-06-08"   # domingo inicio O
+          START_T="2025-10-05"   # domingo inicio T
+          START_A="2026-02-08"   # domingo inicio A
 
-          # Fechas que NUNCA deben tener commits
-          AVOID_DATES="2025-12-31 2026-01-01"
+          # Días prohibidos explícitos (UTC), separados por espacio:
+          AVOID_DATES=""
 
           COMMIT_PREFIX="chore: auto-fill (not GOTA)"
+          today_utc="$(date -u +%F)"
           # ---------- FIN CONFIG ----------
 
-          today_utc="$(date -u +%F)"
-
+          # Aux: sumar días
           add_days() { date -u -d "$1 + $2 days" +%F; }
 
+          # Genera fechas (YYYY-MM-DD) para cada '#' de una matriz 7x5
           emit_dates() {
             local sunday="$1"; shift
             local name="$1"; shift
@@ -55,6 +56,7 @@ jobs:
             done
           }
 
+          # Letras (fila 0=Dom, 6=Sáb)
           mapfile -t GDATES < <(emit_dates "$START_G" "G" \
             " ### " \
             "#   #" \
@@ -93,28 +95,44 @@ jobs:
 
           ALL=("${GDATES[@]}" "${ODATES[@]}" "${TDATES[@]}" "${ADATES[@]}")
 
-          # 1️⃣ Saltar si está en lista de fechas prohibidas
+          # 1) Saltar si hoy está prohibido explícitamente
           for bad in $AVOID_DATES; do
             if [[ "$today_utc" == "$bad" ]]; then
-              echo "Hoy ($today_utc) está en AVOID_DATES. No se hace commit."
+              echo "Hoy ($today_utc) está en AVOID_DATES. No commit."
               exit 0
             fi
           done
 
-          # 2️⃣ Si es día-píxel de G/O/T/A → no commit
+          # 2) Detectar si HOY es píxel de G/O/T/A (si lo es, NO commitear)
           for rec in "${ALL[@]}"; do
             d="${rec%% *}"
             if [[ "$d" == "$today_utc" ]]; then
-              echo "Hoy $today_utc es píxel de GOTA → no commit."
+              echo "Hoy $today_utc es píxel de GOTA. Política invertida: NO commit."
               exit 0
             fi
           done
 
-          echo "✅ Hoy $today_utc NO es píxel de GOTA. Se hará commit."
+          echo "Hoy $today_utc NO es píxel de GOTA. Se hace commit (sin tope)."
 
-          # 3️⃣ Generar commit
+          # 3) Commit (sin límite diario)
           mkdir -p automation/data
           DATE_FULL="$(date -u +"%Y-%m-%d %H:%M:%S UTC")"
+
+          # contador global sólo informativo
+          GLOBAL_COUNT=$(git log --grep="$COMMIT_PREFIX" --oneline | wc -l | tr -d ' ')
+          GLOBAL_NEXT=$((GLOBAL_COUNT + 1))
+
+          # escribimos un estado para asegurar cambio
           {
-            echo "Día normal (relleno)"
-            echo "Fecha UTC: $DATE_FULL"
+            echo "✅ Fill (not GOTA pixel)"
+            echo "🗓️  Fecha (UTC): $today_utc"
+            echo "⏱️  Run: $DATE_FULL"
+            echo "🔢 Global (aprox): #$GLOBAL_NEXT"
+          } > automation/data/fill_status.md
+
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          git add automation/data/fill_status.md
+          git commit -m "$COMMIT_PREFIX #$GLOBAL_NEXT ($today_utc) $(date -u +%H:%M:%S)" || exit 0
+          git push
