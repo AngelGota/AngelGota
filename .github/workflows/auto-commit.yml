@@ -1,12 +1,17 @@
-name: Auto Commit Bot Test
+name: Auto Commit Bot (5min)
 
 on:
   schedule:
-    - cron: "*/5 * * * *"  # Cada 5 minutos (UTC)
+    - cron: "*/5 * * * *"   # cada 5 min (UTC)
   workflow_dispatch:
 
 permissions:
   contents: write
+
+defaults:
+  run:
+    shell: bash
+    working-directory: ${{ github.workspace }}
 
 jobs:
   auto-commit:
@@ -14,15 +19,22 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Crear carpeta si no existe
-        run: mkdir -p automation/data
-        
-      - name: Ejecutar script de commit
+      - name: Debug workspace
         run: |
-          DATE=$(date -u +"%Y-%m-%d %H:%M:%S UTC")
-          echo "🕓 Última actualización automática: $DATE" > automation/data/last_update.md
-          git config user.name "github-actions[bot]"
+          pwd
+          ls -la
+
+      - name: Write heartbeat + commit
+        run: |
+          set -euxo pipefail
+          FILE="automation/data/last_update.md"
+          mkdir -p "$(dirname "$FILE")"
+          date -u +"🕓 Última actualización automática: %Y-%m-%d %H:%M:%S UTC" | tee "$FILE" >/dev/null
+
+          git config user.name  "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add automation/data/last_update.md
-          git commit -m "chore: auto-update heartbeat at $DATE" || echo "No hay cambios"
+
+          git add "$FILE"
+          git diff --cached --quiet && echo "No changes" && exit 0
+          git commit -m "chore: auto-update heartbeat"
           git push
