@@ -1,38 +1,150 @@
-name: Auto Commit Bot (5min)
+name: Draw GOTA (daily)
 
 on:
   schedule:
-    - cron: "*/5 * * * *"   # cada 5 minutos (UTC)
+    - cron: "5 9 * * *"   # 09:05 UTC, 1 vez al día
   workflow_dispatch:
 
 permissions:
   contents: write
 
 jobs:
-  auto-commit:
+  draw-gota:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 
-      - name: Ejecutar script de commit
+      - name: Compute pixel for today & commit if needed
         shell: bash
         run: |
-          set -euxo pipefail
+          set -euo pipefail
 
-          # Crear carpeta y escribir el archivo en el mismo entorno
+          # ---------- CONFIG ----------
+          # Domingos de inicio por letra (inicio de columna 0 de cada letra)
+          START_G="2025-02-09"
+          START_O="2025-06-08"
+          START_T="2025-10-05"
+          START_A="2026-02-08"
+
+          # Fechas a evitar (añade aquí si alguna cae mal para ti)
+          # Formato: YYYY-MM-DD separadas por espacios.
+          AVOID_DATES=""
+
+          # Prefijo de mensaje para contar commits
+          COMMIT_PREFIX="chore: auto-update heartbeat"
+          # ---------- FIN CONFIG ----------
+
+          today_utc="$(date -u +%F)"
+
+          # Función: agrega N días a una fecha (requiere GNU date, presente en runners)
+          add_days() { date -u -d "$1 + $2 days" +%F; }
+
+          # Función: imprime todas las fechas (YYYY-MM-DD) de los "#" de una matriz 7x5
+          # Parámetros: 1) sunday_start  2) name  3..9) 7 filas (Dom..Sáb) como strings de 5 chars (# o espacio)
+          emit_dates() {
+            local sunday="$1"; shift
+            local name="$1"; shift
+            local r=0 c=0 ch line d
+            for r in {0..6}; do
+              line="${1}"; shift
+              for c in {0..4}; do
+                ch="${line:$c:1}"
+                if [[ "$ch" == "#" ]]; then
+                  # fecha = domingo + (c*7) + r
+                  d=$(add_days "$sunday" $(( c*7 + r )))
+                  echo "$d $name"
+                fi
+              done
+            done
+          }
+
+          # Letras (7 filas x 5 columnas). Fila 0 = Domingo, 6 = Sábado
+          # G
+          mapfile -t DATES < <(emit_dates "$START_G" "G" \
+            " ### " \
+            "#   #" \
+            "#    " \
+            "#  ##" \
+            "#   #" \
+            "#   #" \
+            " ### " )
+
+          # O
+          mapfile -t ODATES < <(emit_dates "$START_O" "O" \
+            " ### " \
+            "#   #" \
+            "#   #" \
+            "#   #" \
+            "#   #" \
+            "#   #" \
+            " ### " )
+
+          # T
+          mapfile -t TDATES < <(emit_dates "$START_T" "T" \
+            "#####" \
+            "  #  " \
+            "  #  " \
+            "  #  " \
+            "  #  " \
+            "  #  " \
+            "  #  " )
+
+          # A
+          mapfile -t ADATES < <(emit_dates "$START_A" "A" \
+            " ### " \
+            "#   #" \
+            "#   #" \
+            "#####" \
+            "#   #" \
+            "#   #" \
+            "#   #" )
+
+          ALL=("${DATES[@]}" "${ODATES[@]}" "${TDATES[@]}" "${ADATES[@]}")
+
+          # Evitar fechas explícitas
+          should_avoid=0
+          for bad in $AVOID_DATES; do
+            if [[ "$today_utc" == "$bad" ]]; then should_avoid=1; fi
+          done
+          if [[ $should_avoid -eq 1 ]]; then
+            echo "Hoy ($today_utc) está en la lista de AVOID_DATES. No se dibuja."
+            exit 0
+          fi
+
+          # ¿Hoy es un píxel?
+          hit=""
+          for rec in "${ALL[@]}"; do
+            d="${rec%% *}"
+            letter="${rec##* }"
+            if [[ "$d" == "$today_utc" ]]; then
+              hit="$letter"
+              break
+            fi
+          done
+
+          if [[ -z "$hit" ]]; then
+            echo "Hoy $today_utc no es parte del dibujo. Nada que hacer."
+            exit 0
+          fi
+
+          echo "Hoy $today_utc es un píxel de la letra: $hit"
+
+          # Escribimos un pequeño estado
           mkdir -p automation/data
-          DATE=$(date -u +"%Y-%m-%d %H:%M:%S UTC")
-          echo "🕓 Última actualización automática: $DATE" > automation/data/last_update.md
+          printf "🧩 Pixel %s para %s (UTC)\n" "$hit" "$today_utc" > automation/data/gota_pixel.md
 
-          # Configurar Git
+          # Contador correlativo (se basa en prefijo del commit)
+          COUNT=$(git log --grep="$COMMIT_PREFIX" --oneline | wc -l | tr -d ' ')
+          NEXT=$((COUNT + 1))
+
           git config user.name  "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
-          # Hacer commit solo si hay cambios
-          git add automation/data/last_update.md
+          git add automation/data/gota_pixel.md
           if git diff --cached --quiet; then
-            echo "No hay cambios que hacer"
+            echo "No hay cambios"
             exit 0
           fi
-          git commit -m "chore: auto-update heartbeat ($DATE)"
+
+          git commit -m "$COMMIT_PREFIX #$NEXT [GOTA:$hit] ($today_utc)"
           git push
