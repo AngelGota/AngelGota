@@ -112,7 +112,7 @@ jobs:
             fi
           done
 
-          echo "Hoy $today_utc NO es píxel de GOTA. Se hace commit (sin tope)."
+          echo "Hoy $today_utc es contorno toca pintar. Se hace commit."
 
           # 3) Commit (sin límite diario)
           mkdir -p automation/data
