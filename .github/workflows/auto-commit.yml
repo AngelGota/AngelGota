@@ -13,6 +13,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+
+      - name: Crear carpeta si no existe
+        run: mkdir -p automation/data
+        
       - name: Ejecutar script de commit
         run: |
           DATE=$(date -u +"%Y-%m-%d %H:%M:%S UTC")
