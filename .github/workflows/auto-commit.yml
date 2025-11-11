@@ -1,0 +1,24 @@
+name: Auto Commit Bot Test
+
+on:
+  schedule:
+    - cron: "*/5 * * * *"  # Cada 5 minutos (UTC)
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  auto-commit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Ejecutar script de commit
+        run: |
+          DATE=$(date -u +"%Y-%m-%d %H:%M:%S UTC")
+          echo "🕓 Última actualización automática: $DATE" > automation/data/last_update.md
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add automation/data/last_update.md
+          git commit -m "chore: auto-update heartbeat at $DATE" || echo "No hay cambios"
+          git push
