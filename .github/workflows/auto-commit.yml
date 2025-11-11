@@ -1,53 +1,44 @@
-name: Draw GOTA (5min, up to 20 commits/day)
+name: Fill (except GOTA pixels) – every 5 min, unlimited commits
 
 on:
   schedule:
-    - cron: "*/5 * * * *"   # cada 5 minutos (UTC)
+    - cron: "*/10 * * * *"   # cada 5 min (UTC)
   workflow_dispatch:
 
 permissions:
   contents: write
 
-# Evita solapes si un job anterior aún corre cuando llega el siguiente
 concurrency:
-  group: gota-${{ github.ref }}
+  group: fill-not-gota-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
-  draw-gota:
+  fill-not-gota:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 
-      - name: Dibujar si toca (con tope 20 commits en el día UTC)
+      - name: Run (skip GOTA pixels; commit otherwise)
         shell: bash
         run: |
           set -euo pipefail
 
           # ---------- CONFIG ----------
-          # Domingos de inicio (columna 0 de cada letra)
           START_G="2025-02-09"
           START_O="2025-06-08"
           START_T="2025-10-05"
           START_A="2026-02-08"
 
-          # Días que NO deben tener commits (UTC) — añade los que quieras
-          # ejemplo: AVOID_DATES="2025-10-26 2025-12-31 2026-01-01"
-          AVOID_DATES=""
+          # Fechas que NUNCA deben tener commits
+          AVOID_DATES="2025-12-31 2026-01-01"
 
-          # Prefijo para buscar/contar commits del bot
-          COMMIT_PREFIX="chore: auto-update heartbeat"
-
-          # Límite de commits por día (UTC)
-          DAILY_LIMIT=20
+          COMMIT_PREFIX="chore: auto-fill (not GOTA)"
           # ---------- FIN CONFIG ----------
 
           today_utc="$(date -u +%F)"
 
-          # Aux: sumar días
           add_days() { date -u -d "$1 + $2 days" +%F; }
 
-          # Genera fechas (YYYY-MM-DD) donde hay "#"
           emit_dates() {
             local sunday="$1"; shift
             local name="$1"; shift
@@ -64,7 +55,6 @@ jobs:
             done
           }
 
-          # Definición 7x5 por letra (fila 0=Dom, 6=Sáb)
           mapfile -t GDATES < <(emit_dates "$START_G" "G" \
             " ### " \
             "#   #" \
@@ -103,63 +93,28 @@ jobs:
 
           ALL=("${GDATES[@]}" "${ODATES[@]}" "${TDATES[@]}" "${ADATES[@]}")
 
-          # 1) Saltar si hoy está explícitamente prohibido
+          # 1️⃣ Saltar si está en lista de fechas prohibidas
           for bad in $AVOID_DATES; do
             if [[ "$today_utc" == "$bad" ]]; then
-              echo "Hoy ($today_utc) está en AVOID_DATES. No se dibuja."
+              echo "Hoy ($today_utc) está en AVOID_DATES. No se hace commit."
               exit 0
             fi
           done
 
-          # 2) ¿Hoy es un píxel del dibujo?
-          hit=""
+          # 2️⃣ Si es día-píxel de G/O/T/A → no commit
           for rec in "${ALL[@]}"; do
             d="${rec%% *}"
-            letter="${rec##* }"
             if [[ "$d" == "$today_utc" ]]; then
-              hit="$letter"
-              break
+              echo "Hoy $today_utc es píxel de GOTA → no commit."
+              exit 0
             fi
           done
 
-          if [[ -z "$hit" ]]; then
-            echo "Hoy $today_utc no es día de píxel. Nada que hacer."
-            exit 0
-          fi
-          echo "Hoy $today_utc es un píxel de la letra: $hit"
+          echo "✅ Hoy $today_utc NO es píxel de GOTA. Se hará commit."
 
-          # 3) Respetar tope de 20 commits en el día (UTC)
-          # Contamos commits del bot HOY buscando la fecha en el mensaje
-          TODAY_COUNT=$(git log --grep="$COMMIT_PREFIX" --grep="($today_utc)" --oneline | wc -l | tr -d ' ')
-          if [[ "$TODAY_COUNT" -ge "$DAILY_LIMIT" ]]; then
-            echo "Límite diario alcanzado ($TODAY_COUNT >= $DAILY_LIMIT). No commiteo."
-            exit 0
-          fi
-          TODAY_NEXT=$((TODAY_COUNT + 1))
-
-          # 4) Correlativo global (#N) para el mensaje
-          GLOBAL_COUNT=$(git log --grep="$COMMIT_PREFIX" --oneline | wc -l | tr -d ' ')
-          GLOBAL_NEXT=$((GLOBAL_COUNT + 1))
-
-          # 5) Escribir/commitear
+          # 3️⃣ Generar commit
           mkdir -p automation/data
           DATE_FULL="$(date -u +"%Y-%m-%d %H:%M:%S UTC")"
           {
-            echo "🧩 GOTA pixel: $hit"
-            echo "🗓️  Fecha (UTC): $today_utc"
-            echo "⏱️  Run: $DATE_FULL"
-            echo "🔢 Hoy: $TODAY_NEXT / $DAILY_LIMIT"
-            echo "🔢 Global: #$GLOBAL_NEXT"
-          } > automation/data/gota_pixel.md
-
-          git config user.name  "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-
-          git add automation/data/gota_pixel.md
-          if git diff --cached --quiet; then
-            echo "No hay cambios"
-            exit 0
-          fi
-
-          git commit -m "$COMMIT_PREFIX #$GLOBAL_NEXT [GOTA:$hit] ($today_utc) (run $TODAY_NEXT/$DAILY_LIMIT)"
-          git push
+            echo "Día normal (relleno)"
+            echo "Fecha UTC: $DATE_FULL"
