@@ -32,16 +32,27 @@ jobs:
           REPO: ${{ github.repository }}
         run: |
           set -euo pipefail
-          # Listamos PRs abiertos base=main y filtramos los que vienen de feature/*
+      
+          # Intento principal usando gh pr list (campos válidos)
           COUNT=$(gh pr list --repo "$REPO" --state open --base main \
-                    --json headRef,number --jq '[ .[] | select(.headRef | startswith("feature/")) ] | length')
+                    --json headRefName,number \
+                    --jq '[ .[] | select(.headRefName | startswith("feature/")) ] | length' || echo 0)
+      
+          # 🧩 Fallback por si gh pr list falla o devuelve null
+          if [[ -z "${COUNT}" || "${COUNT}" == "null" ]]; then
+            echo "⚠️ gh pr list falló, usando fallback con gh api..."
+            COUNT=$(gh api -X GET "repos/${REPO}/pulls?state=open&base=main&per_page=100" --paginate \
+              --jq '[ .[] | select(.head.ref | startswith("feature/")) ] | length' || echo 0)
+          fi
+      
           FIRST_NUM=$(gh pr list --repo "$REPO" --state open --base main \
-                    --json headRef,number --jq '[ .[] | select(.headRef | startswith("feature/")) ][0].number // ""')
-
+                        --json headRefName,number \
+                        --jq '[ .[] | select(.headRefName | startswith("feature/")) ][0].number // ""')
+      
           echo "open_feature_prs=$COUNT" >> "$GITHUB_OUTPUT"
           echo "blocking_pr=$FIRST_NUM"  >> "$GITHUB_OUTPUT"
           echo "🔎 PRs abiertos feature/* -> main: $COUNT ${FIRST_NUM:+(bloquea #$FIRST_NUM)}"
-
+      
       - name: Crear PRs faltantes (feature/* → main) + reviewers
         if: steps.guard.outputs.open_feature_prs == '0'
         env:
