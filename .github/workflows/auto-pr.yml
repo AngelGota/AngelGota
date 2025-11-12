@@ -19,27 +19,46 @@ jobs:
       - uses: actions/checkout@v4
         with: { fetch-depth: 0 }
 
-      - name: Crear PRs faltantes (feature/* → main)
+      - name: Crear PRs faltantes (feature/* → main) + reviewers
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}   # gh toma GH_TOKEN o GITHUB_TOKEN
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}     # gh usa GH_TOKEN/GITHUB_TOKEN
           REPO: ${{ github.repository }}
+          REVIEWERS: AngelGota                      # separa por coma si hay más: user1,user2
+          ASSIGNEES: AngelGota
+          LABELS: needs-review,auto-pr              # crea si no existen
         shell: bash
         run: |
           set -euo pipefail
-        
+
+          ensure_label() {
+            local name="$1"
+            if ! gh label list --repo "${REPO}" --search "^${name}$" --json name --jq '.[0].name' >/dev/null 2>&1; then
+              echo "➕ Creando label: ${name}"
+              gh label create "${name}" --repo "${REPO}" --color "666666" --description "auto" || true
+            fi
+          }
+
+          # Asegura labels requeridos (evita 'not found')
+          IFS=',' read -r -a LARR <<< "${LABELS}"
+          for L in "${LARR[@]}"; do ensure_label "${L}"; done
+
           # Listar ramas remotas feature/*
           mapfile -t BRANCHES < <(git ls-remote --heads "https://github.com/${REPO}.git" 'refs/heads/feature/*' \
                                 | awk '{print $2}' | sed 's@refs/heads/@@')
-        
+
+          if [[ ${#BRANCHES[@]} -eq 0 ]]; then
+            echo "No hay ramas feature/*"; exit 0
+          fi
+
           for HEAD in "${BRANCHES[@]}"; do
-            # 1) ¿PR abierto ya? -> revisar SALIDA, no exit code
+            # 1) ¿PR abierto ya?
             EXISTE=$(gh pr list --repo "${REPO}" --head "${HEAD}" --base "main" --state open \
                        --json number --jq '.[0].number' || true)
             if [[ -n "${EXISTE}" ]]; then
               echo "✔ PR ya existe para ${HEAD} (#${EXISTE})"
               continue
             fi
-        
+
             # 2) ¿Hay commits en la rama que no estén en main?
             git fetch --no-tags --quiet origin "${HEAD}" main
             AHEAD=$(git rev-list --left-right --count "origin/main...origin/${HEAD}" | awk '{print $2}')
@@ -47,8 +66,8 @@ jobs:
               echo "⏭ Sin cambios vs main en ${HEAD}"
               continue
             fi
-        
-            # 3) Crear PR (sin --json). gh imprime la URL en stdout si todo va bien.
+
+            # 3) Crear PR (sin labels para no fallar), luego etiquetar/asignar/reviewers
             echo "↗ Crear PR para ${HEAD}"
             gh pr create \
               --repo "${REPO}" \
@@ -56,6 +75,14 @@ jobs:
               --head "${HEAD}" \
               --title "feat: ${HEAD} → main" \
               --body "PR automático generado por auto-pr." \
-              --label "needs-review" --label "auto-pr" \
-              --assignee "AngelGota" || { echo "❌ Falló al crear PR para ${HEAD}"; exit 1; }
+              --assignee "${ASSIGNEES}" \
+              --reviewer "${REVIEWERS}"
+
+            # Obtener número del PR recién creado
+            PRNUM=$(gh pr list --repo "${REPO}" --head "${HEAD}" --base "main" --state open \
+                      --json number --jq '.[0].number')
+            echo "PR #${PRNUM} creado para ${HEAD}"
+
+            # Añadir labels ahora que existen seguro
+            gh pr edit "${PRNUM}" --repo "${REPO}" --add-label "${LABELS}"
           done
