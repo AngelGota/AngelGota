@@ -1,0 +1,23 @@
+name: Auto Create Pull Request
+on:
+  push:
+    branches:
+      - feature/**
+permissions:
+  contents: write
+  pull-requests: write
+jobs:
+  create-pr:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: peter-evans/create-pull-request@v6
+        with:
+          branch: ${{ github.ref_name }}
+          title: "feat: merge ${{ github.ref_name }} → main"
+          body: "PR automático generado por workflow."
+          base: main
+          labels: auto-pr, needs-review
+          assignees: AngelGota
+          author: AngelGota <gangelos630@gmail.com>
+          committer: AngelGota <gangelos630@gmail.com>

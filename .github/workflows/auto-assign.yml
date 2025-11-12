@@ -1,0 +1,14 @@
+name: Auto Assign Reviewers
+on:
+  pull_request:
+    types: [opened, ready_for_review]
+permissions:
+  pull-requests: write
+jobs:
+  assign:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: kentaro-m/auto-assign-action@v2
+        with:
+          reviewers: 'AngelGota'
+          addLabels: 'needs-review'
