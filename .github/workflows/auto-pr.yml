@@ -32,23 +32,29 @@ jobs:
           REPO: ${{ github.repository }}
         run: |
           set -euo pipefail
-          # Listamos TODOS los PRs abiertos con base=main y filtramos los que vienen de feature/*
-          COUNT=$(gh api repos/${REPO}/pulls --paginate -f state=open -f base=main \
-            --jq '[ .[] | select(.head.ref | startswith("feature/")) ] | length' || echo 0)
-
-          # (Opcional) mostramos el PR que bloquea, si existe
-          FIRST_NUM=$(gh api repos/${REPO}/pulls --paginate -f state=open -f base=main \
-            --jq '[ .[] | select(.head.ref | startswith("feature/")) ][0].number' || echo "")
-
-          echo "open_feature_prs=$COUNT" >> "$GITHUB_OUTPUT"
-          echo "blocking_pr=$FIRST_NUM"   >> "$GITHUB_OUTPUT"
-
-          if [ "${COUNT:-0}" -ge 1 ]; then
-            echo "🛑 Ya existe un PR abierto desde feature/* -> main (#$FIRST_NUM). No se crearán más."
+      
+          # Intento principal usando gh pr list (campos válidos)
+          COUNT=$(gh pr list --repo "$REPO" --state open --base main \
+                    --json headRefName,number \
+                    --jq '[ .[] | select(.headRefName | startswith("feature/")) ] | length' || echo 0)
+      
+          # 🧩 Fallback por si gh pr list falla o devuelve null
+          if [[ -z "${COUNT}" || "${COUNT}" == "null" ]]; then
+            echo "⚠️ gh pr list falló, usando fallback con gh api..."
+            COUNT=$(gh api -X GET "repos/${REPO}/pulls?state=open&base=main&per_page=100" --paginate \
+              --jq '[ .[] | select(.head.ref | startswith("feature/")) ] | length' || echo 0)
           fi
-
+      
+          FIRST_NUM=$(gh pr list --repo "$REPO" --state open --base main \
+                        --json headRefName,number \
+                        --jq '[ .[] | select(.headRefName | startswith("feature/")) ][0].number // ""')
+      
+          echo "open_feature_prs=$COUNT" >> "$GITHUB_OUTPUT"
+          echo "blocking_pr=$FIRST_NUM"  >> "$GITHUB_OUTPUT"
+          echo "🔎 PRs abiertos feature/* -> main: $COUNT ${FIRST_NUM:+(bloquea #$FIRST_NUM)}"
+      
       - name: Crear PRs faltantes (feature/* → main) + reviewers
-        if: steps.guard.outputs.open_feature_prs == '0'  # solo si NO hay ninguno abierto
+        if: steps.guard.outputs.open_feature_prs == '0'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           REPO: ${{ github.repository }}
@@ -75,28 +81,36 @@ jobs:
           IFS=',' read -r -a LARR <<< "${LABELS}"
           for L in "${LARR[@]}"; do ensure_label "$L"; done
 
-          # Ramas remotas feature/*
-          mapfile -t BRANCHES < <(git ls-remote --heads "https://github.com/${REPO}.git" 'refs/heads/feature/*' \
-                                | awk '{print $2}' | sed 's@refs/heads/@@')
+          # Detectar ramas feature/* (URL autenticada por si el repo es privado)
+          REMOTE_URL="https://x-access-token:${GH_TOKEN}@github.com/${REPO}.git"
+          mapfile -t BRANCHES < <(git ls-remote --heads "${REMOTE_URL}" 'refs/heads/feature/*' \
+                                  | awk '{print $2}' | sed 's@refs/heads/@@')
+          echo "🌿 Ramas feature/* detectadas: ${#BRANCHES[@]}"
+          printf '%s\n' "${BRANCHES[@]}" | sed 's/^/  - /' || true
 
-          if [[ ${#BRANCHES[@]} -eq 0 ]]; then
-            echo "No hay ramas feature/*"; exit 0
-          fi
+          [[ ${#BRANCHES[@]} -eq 0 ]] && { echo "No hay ramas feature/*"; exit 0; }
+
+          git init .
+          git remote add origin "${REMOTE_URL}" 2>/dev/null || true
+          git fetch --no-tags --quiet origin
 
           for HEAD in "${BRANCHES[@]}"; do
+            [[ -z "$HEAD" ]] && continue
+
             # 1) ¿PR abierto ya para esta rama?
             EXISTE=$(gh pr list --repo "${REPO}" --head "${HEAD}" --base "main" --state open \
                        --json number --jq '.[0].number' || true)
             if [[ -n "${EXISTE}" ]]; then
-              echo "✔ PR ya existe para ${HEAD} (#${EXISTE})"
+              echo "✔ Ya existe PR para ${HEAD} (#${EXISTE})"
               continue
-            fi
+            fi;
 
-            # 2) ¿Rama adelantada vs main?
+            # 2) ¿Tiene cambios vs main?
             git fetch --no-tags --quiet origin "${HEAD}" main
             AHEAD=$(git rev-list --left-right --count "origin/main...origin/${HEAD}" | awk '{print $2}')
+            echo "↔ ${HEAD} ahead de main: ${AHEAD} commits"
             if [[ "${AHEAD}" -eq 0 ]]; then
-              echo "⏭ Sin cambios vs main en ${HEAD}"
+              echo "⏭ Sin cambios vs main en ${HEAD} — no se crea PR."
               continue
             fi
 
@@ -111,15 +125,17 @@ jobs:
               --assignee "${ASSIGNEES}" \
               --reviewer "${REVIEWERS}"
 
-            # 4) Añadir etiquetas
+            # 4) Etiquetas y salida
             PRNUM=$(gh pr list --repo "${REPO}" --head "${HEAD}" --base "main" --state open \
-                      --json number --jq '.[0].number')
-            for L in "${LARR[@]}"; do
-              L=$(trim "$L")
-              gh pr edit "${PRNUM}" --repo "${REPO}" --add-label "${L}" || echo "⚠ No pude añadir label ${L}"
-            done
-
-            # Importante: tras crear UNO, salimos para mantener 1 PR a la vez
-            echo "✅ PR #${PRNUM} creado. Se detiene la creación para mantener solo 1 abierto."
-            break
+                      --json number --jq '.[0].number' || echo "")
+            if [[ -n "$PRNUM" ]]; then
+              for L in "${LARR[@]}"; do
+                L=$(trim "$L")
+                gh pr edit "${PRNUM}" --repo "${REPO}" --add-label "${L}" || echo "⚠ No pude añadir label ${L}"
+              done
+              echo "✅ PR #${PRNUM} creado. Se detiene para mantener solo 1 abierto."
+              break
+            else
+              echo "⚠ PR no encontrado tras crear; se continúa con la siguiente rama."
+            fi
           done
