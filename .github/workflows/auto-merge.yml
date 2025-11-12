@@ -20,6 +20,19 @@ jobs:
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       GH_PAT:   ${{ secrets.GH_PAT }}
     steps:
+      - name: Actualizar GitHub CLI (gh)
+        run: |
+          echo "⬆️ Instalando la última versión de gh CLI..."
+          sudo apt-get update -y
+          sudo apt-get install -y jq
+          type -p curl >/dev/null || sudo apt install curl -y
+          curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg | sudo dd of=/usr/share/keyrings/githubcli-archive-keyring.gpg
+          sudo chmod go+r /usr/share/keyrings/githubcli-archive-keyring.gpg
+          echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" | sudo tee /etc/apt/sources.list.d/github-cli.list > /dev/null
+          sudo apt update
+          sudo apt install gh -y
+          gh --version
+
       - name: Verificar PRs abiertos y mergear si cumplen
         shell: bash
         run: |
@@ -36,33 +49,30 @@ jobs:
           for PR in "${PRS[@]}"; do
             echo "---- Evaluando PR #$PR ----"
 
-            # 🔧 Corregido: contar comentarios con length
+            # Comentarios (fix)
             COMMENTS=$(gh pr view "$PR" --repo "$REPO" --json comments --jq '.comments | length')
 
-            # Contar aprobaciones (último estado de cada revisor)
+            # Aprobaciones (fix)
             APPROVALS=$(gh pr reviews "$PR" --repo "$REPO" --json author,state \
               --jq 'group_by(.author.login) | map(.[-1].state) | map(select(.=="APPROVED")) | length')
 
-            # SHA y estado de checks
+            # SHA + checks
             SHA=$(gh pr view "$PR" --repo "$REPO" --json headRefOid --jq .headRefOid)
             CHECKS_STATE=$(gh api "repos/${REPO}/commits/${SHA}/status" --jq .state)
 
-            # Estado mergeable
+            # Mergeable
             MERGEABLE_STATE=$(gh api "repos/${REPO}/pulls/${PR}" --jq .mergeable_state)
 
             echo "📊 Comentarios: $COMMENTS | Approvals: $APPROVALS | Checks: $CHECKS_STATE | Mergeable: $MERGEABLE_STATE"
 
-            # Reglas mínimas
             if [[ "$COMMENTS" -ge 1 && "$APPROVALS" -ge 1 && "$CHECKS_STATE" == "success" ]]; then
               case "$MERGEABLE_STATE" in
                 clean|unstable|has_hooks)
                   echo "✅ Cumple criterios. Haciendo merge (squash) y borrando rama…"
-
                   if [[ -z "${GH_PAT:-}" ]]; then
                     echo "❌ GH_PAT no configurado. Crea el secret GH_PAT para mergear como tu usuario."
                     exit 1
                   fi
-
                   GH_TOKEN="$GH_PAT" gh pr merge "$PR" --repo "$REPO" --squash --delete-branch \
                     --subject "$(gh pr view "$PR" --repo "$REPO" --json title --jq .title)" || \
                     echo "⚠️ No se pudo mergear PR #$PR (posible condición de protección de rama)."
