@@ -17,10 +17,10 @@ jobs:
     runs-on: ubuntu-latest
     env:
       REPO: ${{ github.repository }}
-      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      GH_PAT:   ${{ secrets.GH_PAT }}
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}   # lecturas
+      GH_PAT:   ${{ secrets.GH_PAT }}         # merge como tu usuario
     steps:
-      - name: Asegurar GH CLI y JQ
+      - name: Asegurar GH CLI y jq
         run: |
           sudo apt-get update -y
           sudo apt-get install -y jq gh
@@ -34,33 +34,80 @@ jobs:
           OWNER_REPO="${REPO}"
           echo "🔍 Buscando PRs abiertos en $OWNER_REPO..."
 
-          # Lista PRs abiertos (no draft)
-          mapfile -t PRS < <(gh api "repos/${OWNER_REPO}/pulls?state=open" --jq '.[] | select(.draft==false) | .number')
-
+          # PRs abiertos que no son draft
+          mapfile -t PRS < <(gh api "repos/${OWNER_REPO}/pulls?state=open&per_page=100" \
+                              --jq '.[] | select(.draft==false) | .number')
           [[ ${#PRS[@]} -eq 0 ]] && { echo "No hay PRs abiertos (no draft)."; exit 0; }
+
+          wait_checks () {
+            local sha="$1" tries=0 max=60
+            while :; do
+              # combined status (old API)
+              local st; st=$(gh api "repos/${OWNER_REPO}/commits/${sha}/status" --jq .state)
+              # checks v3 (new API)
+              local total failure_count
+              total=$(gh api -H "Accept: application/vnd.github+json" \
+                        "repos/${OWNER_REPO}/commits/${sha}/check-runs" --jq '.total_count')
+              failure_count=$(gh api -H "Accept: application/vnd.github+json" \
+                        "repos/${OWNER_REPO}/commits/${sha}/check-runs" \
+                        --jq '[.check_runs[].conclusion] | map(select(.=="failure" or .=="timed_out" or .=="cancelled")) | length')
+
+              if [[ "$st" == "success" ]] || { [[ "${total:-0}" -gt 0 ]] && [[ "${failure_count:-0}" -eq 0 ]]; }; then
+                echo "✅ Checks OK (state=$st, failures=${failure_count:-0})"
+                return 0
+              fi
+
+              ((tries++))
+              if [[ $tries -ge $max ]]; then
+                echo "⏱️ Timeout esperando checks (state=$st)."
+                return 1
+              fi
+              sleep 2
+            done
+          }
+
+          wait_mergeable () {
+            local pr="$1" tries=0 max=30
+            while :; do
+              local ms; ms=$(gh api "repos/${OWNER_REPO}/pulls/${pr}" --jq .mergeable_state)
+              if [[ "$ms" != "unknown" && -n "$ms" ]]; then
+                echo "ℹ️ mergeable_state=$ms"
+                echo "$ms"
+                return 0
+              fi
+              ((tries++))
+              [[ $tries -ge $max ]] && { echo "⚠️ mergeable_state sigue 'unknown'"; echo "unknown"; return 0; }
+              sleep 1
+            done
+          }
 
           for PR in "${PRS[@]}"; do
             echo "---- Evaluando PR #$PR ----"
 
-            # Comentarios
-            COMMENTS=$(gh api "repos/${OWNER_REPO}/issues/${PR}/comments" --jq 'length')
+            # Comentarios: hilo del PR (issues) + comentarios de review (en diffs)
+            COMMENTS_ISSUE=$(gh api "repos/${OWNER_REPO}/issues/${PR}/comments?per_page=100" --jq 'length')
+            COMMENTS_REVIEW=$(gh api "repos/${OWNER_REPO}/pulls/${PR}/comments?per_page=100" --jq 'length')
+            COMMENTS=$(( COMMENTS_ISSUE + COMMENTS_REVIEW ))
 
-            # Aprobaciones
-            APPROVALS=$(gh api "repos/${OWNER_REPO}/pulls/${PR}/reviews" \
-              --jq '[ group_by(.user.login) | map(.[-1].state) | map(select(.=="APPROVED")) | length ] | add')
+            # Aprobaciones: último estado por revisor
+            APPROVALS=$(gh api "repos/${OWNER_REPO}/pulls/${PR}/reviews?per_page=100" \
+              --jq 'group_by(.user.login) | map(.[-1].state) | map(select(.=="APPROVED")) | length')
 
-            # SHA del head
+            # SHA head
             SHA=$(gh api "repos/${OWNER_REPO}/pulls/${PR}" --jq .head.sha)
 
-            # Checks combinados
-            CHECKS_STATE=$(gh api "repos/${OWNER_REPO}/commits/${SHA}/status" --jq .state)
+            # Esperar checks OK
+            if ! wait_checks "$SHA"; then
+              echo "⏭ Checks aún no OK. Se omite por ahora."
+              continue
+            fi
 
-            # Estado mergeable
-            MERGEABLE_STATE=$(gh api "repos/${OWNER_REPO}/pulls/${PR}" --jq .mergeable_state)
+            # mergeable_state (con espera breve para que GitHub lo calcule)
+            MERGEABLE_STATE=$(wait_mergeable "$PR")
 
-            echo "📊 Comentarios: $COMMENTS | Approvals: $APPROVALS | Checks: $CHECKS_STATE | Mergeable: $MERGEABLE_STATE"
+            echo "📊 Comentarios: $COMMENTS | Approvals: $APPROVALS | Mergeable: $MERGEABLE_STATE"
 
-            if [[ "$COMMENTS" -ge 1 && "$APPROVALS" -ge 1 && "$CHECKS_STATE" == "success" ]]; then
+            if [[ "$COMMENTS" -ge 1 && "$APPROVALS" -ge 1 ]]; then
               case "$MERGEABLE_STATE" in
                 clean|unstable|has_hooks)
                   echo "✅ Cumple criterios. Mergeando (squash + delete branch)..."
@@ -68,18 +115,16 @@ jobs:
                     echo "❌ GH_PAT no configurado. Crea el secret GH_PAT para mergear como tu usuario."
                     exit 1
                   fi
-
-                  GH_TOKEN="$GH_PAT" gh pr merge "$PR" --repo "$OWNER_REPO" --squash --delete-branch \
-                    --subject "$(gh api "repos/${OWNER_REPO}/pulls/${PR}" --jq .title)"
-
+                  TITLE=$(gh api "repos/${OWNER_REPO}/pulls/${PR}" --jq .title)
+                  GH_TOKEN="$GH_PAT" gh pr merge "$PR" --repo "$OWNER_REPO" --squash --delete-branch --subject "$TITLE"
                   gh pr comment "$PR" --repo "$OWNER_REPO" --body \
-                    "✅ **GotaBot:** PR mergeado automáticamente por @AngelGota (comentarios y approvals mínimos cumplidos)."
+                    "✅ **GotaBot:** Merge automático (1+ comentario, 1+ approval, checks OK)."
                   ;;
                 *)
                   echo "⛔ No mergeable todavía (estado: $MERGEABLE_STATE). Se omite."
                   ;;
               esac
             else
-              echo "⏭ No cumple mínimos (comentarios>=1, approvals>=1, checks=success)."
+              echo "⏭ No cumple mínimos (comentarios>=1 y approvals>=1)."
             fi
           done
