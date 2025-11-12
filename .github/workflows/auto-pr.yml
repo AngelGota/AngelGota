@@ -32,20 +32,15 @@ jobs:
           REPO: ${{ github.repository }}
         run: |
           set -euo pipefail
-          # Listamos TODOS los PRs abiertos con base=main y filtramos los que vienen de feature/*
-          COUNT=$(gh api repos/${REPO}/pulls --paginate -f state=open -f base=main \
-            --jq '[ .[] | select(.head.ref | startswith("feature/")) ] | length' || echo 0)
-
-          # (Opcional) mostramos el PR que bloquea, si existe
-          FIRST_NUM=$(gh api repos/${REPO}/pulls --paginate -f state=open -f base=main \
-            --jq '[ .[] | select(.head.ref | startswith("feature/")) ][0].number' || echo "")
+          # Listamos PRs abiertos base=main y filtramos los que vienen de feature/*
+          COUNT=$(gh pr list --repo "$REPO" --state open --base main \
+                    --json headRef,number --jq '[ .[] | select(.headRef | startswith("feature/")) ] | length')
+          FIRST_NUM=$(gh pr list --repo "$REPO" --state open --base main \
+                    --json headRef,number --jq '[ .[] | select(.headRef | startswith("feature/")) ][0].number // ""')
 
           echo "open_feature_prs=$COUNT" >> "$GITHUB_OUTPUT"
-          echo "blocking_pr=$FIRST_NUM"   >> "$GITHUB_OUTPUT"
-
-          if [ "${COUNT:-0}" -ge 1 ]; then
-            echo "🛑 Ya existe un PR abierto desde feature/* -> main (#$FIRST_NUM). No se crearán más."
-          fi
+          echo "blocking_pr=$FIRST_NUM"  >> "$GITHUB_OUTPUT"
+          echo "🔎 PRs abiertos feature/* -> main: $COUNT ${FIRST_NUM:+(bloquea #$FIRST_NUM)}"
 
       - name: Crear PRs faltantes (feature/* → main) + reviewers
         if: steps.guard.outputs.open_feature_prs == '0'
@@ -75,32 +70,31 @@ jobs:
           IFS=',' read -r -a LARR <<< "${LABELS}"
           for L in "${LARR[@]}"; do ensure_label "$L"; done
 
-          # Ramas remotas feature/*  (usar URL autenticada por si el repo es privado)
+          # Detectar ramas feature/* (URL autenticada por si el repo es privado)
           REMOTE_URL="https://x-access-token:${GH_TOKEN}@github.com/${REPO}.git"
           mapfile -t BRANCHES < <(git ls-remote --heads "${REMOTE_URL}" 'refs/heads/feature/*' \
                                   | awk '{print $2}' | sed 's@refs/heads/@@')
           echo "🌿 Ramas feature/* detectadas: ${#BRANCHES[@]}"
           printf '%s\n' "${BRANCHES[@]}" | sed 's/^/  - /' || true
 
-          if [[ ${#BRANCHES[@]} -eq 0 ]]; then
-            echo "No hay ramas feature/*"; exit 0
-          fi
+          [[ ${#BRANCHES[@]} -eq 0 ]] && { echo "No hay ramas feature/*"; exit 0; }
 
+          git init .
           git remote add origin "${REMOTE_URL}" 2>/dev/null || true
           git fetch --no-tags --quiet origin
 
           for HEAD in "${BRANCHES[@]}"; do
             [[ -z "$HEAD" ]] && continue
 
-            # 1) ¿Ya hay PR abierto para esta rama?
+            # 1) ¿PR abierto ya para esta rama?
             EXISTE=$(gh pr list --repo "${REPO}" --head "${HEAD}" --base "main" --state open \
                        --json number --jq '.[0].number' || true)
             if [[ -n "${EXISTE}" ]]; then
               echo "✔ Ya existe PR para ${HEAD} (#${EXISTE})"
               continue
-            fi
+            fi;
 
-            # 2) ¿HEAD tiene cambios vs main?
+            # 2) ¿Tiene cambios vs main?
             git fetch --no-tags --quiet origin "${HEAD}" main
             AHEAD=$(git rev-list --left-right --count "origin/main...origin/${HEAD}" | awk '{print $2}')
             echo "↔ ${HEAD} ahead de main: ${AHEAD} commits"
@@ -120,7 +114,7 @@ jobs:
               --assignee "${ASSIGNEES}" \
               --reviewer "${REVIEWERS}"
 
-            # 4) Etiquetas
+            # 4) Etiquetas y salida
             PRNUM=$(gh pr list --repo "${REPO}" --head "${HEAD}" --base "main" --state open \
                       --json number --jq '.[0].number' || echo "")
             if [[ -n "$PRNUM" ]]; then
