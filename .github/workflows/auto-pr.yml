@@ -2,22 +2,40 @@ name: Auto Create Pull Request
 on:
   push:
     branches:
-      - feature/**
+      - 'feature/**'
+
 permissions:
   contents: write
   pull-requests: write
+
 jobs:
   create-pr:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: peter-evans/create-pull-request@v6
-        with:
-          branch: ${{ github.ref_name }}
-          title: "feat: merge ${{ github.ref_name }} → main"
-          body: "PR automático generado por workflow."
-          base: main
-          labels: auto-pr, needs-review
-          assignees: AngelGota
-          author: AngelGota <gangelos630@gmail.com>
-          committer: AngelGota <gangelos630@gmail.com>
+      - name: Checkout (no hace falta histórico)
+        uses: actions/checkout@v4
+
+      - name: Asegurar GH CLI logueado
+        run: echo "ok"
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Crear PR si no existe
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          HEAD_BRANCH: ${{ github.ref_name }}
+        run: |
+          # ¿Ya existe PR abierto desde HEAD_BRANCH hacia main?
+          if gh pr list --head "$HEAD_BRANCH" --base "main" --state open --json number --jq '.[0].number' >/dev/null 2>&1; then
+            echo "PR ya existe, no se crea otro."
+            exit 0
+          fi
+
+          # Crear PR
+          gh pr create \
+            --base main \
+            --head "$HEAD_BRANCH" \
+            --title "feat: merge $HEAD_BRANCH → main" \
+            --body "PR automático generado por workflow." \
+            --label "auto-pr" --label "needs-review" \
+            --reviewer "AngelGota" || true
