@@ -1,4 +1,4 @@
-name: Validación de review + Comentario GotaBot + Auto-approve + Merge
+name: 3. Auto review + AutoCommentGotaBot + AutoApprove + AutoMerge
 
 on:
   pull_request:

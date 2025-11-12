@@ -1,4 +1,4 @@
-name: Auto PR para todas las feature/*
+name: 2. AutoPullRequest for the feature/*
 
 on:
   schedule:
