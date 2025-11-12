@@ -20,17 +20,10 @@ jobs:
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       GH_PAT:   ${{ secrets.GH_PAT }}
     steps:
-      - name: Actualizar GitHub CLI (gh)
+      - name: Asegurar GH CLI y JQ
         run: |
-          echo "⬆️ Instalando la última versión de gh CLI..."
           sudo apt-get update -y
-          sudo apt-get install -y jq
-          type -p curl >/dev/null || sudo apt install curl -y
-          curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg | sudo dd of=/usr/share/keyrings/githubcli-archive-keyring.gpg
-          sudo chmod go+r /usr/share/keyrings/githubcli-archive-keyring.gpg
-          echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" | sudo tee /etc/apt/sources.list.d/github-cli.list > /dev/null
-          sudo apt update
-          sudo apt install gh -y
+          sudo apt-get install -y jq gh
           gh --version
 
       - name: Verificar PRs abiertos y mergear si cumplen
@@ -38,44 +31,49 @@ jobs:
         run: |
           set -euo pipefail
 
-          echo "🔍 Buscando PRs abiertos en $REPO..."
+          OWNER_REPO="${REPO}"
+          echo "🔍 Buscando PRs abiertos en $OWNER_REPO..."
 
           # Lista PRs abiertos (no draft)
-          mapfile -t PRS < <(gh pr list --repo "$REPO" --state open --json number,isDraft \
-                              --jq '.[] | select(.isDraft==false) | .number')
+          mapfile -t PRS < <(gh api "repos/${OWNER_REPO}/pulls?state=open" --jq '.[] | select(.draft==false) | .number')
 
           [[ ${#PRS[@]} -eq 0 ]] && { echo "No hay PRs abiertos (no draft)."; exit 0; }
 
           for PR in "${PRS[@]}"; do
             echo "---- Evaluando PR #$PR ----"
 
-            # Comentarios (fix)
-            COMMENTS=$(gh pr view "$PR" --repo "$REPO" --json comments --jq '.comments | length')
+            # Comentarios
+            COMMENTS=$(gh api "repos/${OWNER_REPO}/issues/${PR}/comments" --jq 'length')
 
-            # Aprobaciones (fix)
-            APPROVALS=$(gh pr reviews "$PR" --repo "$REPO" --json author,state \
-              --jq 'group_by(.author.login) | map(.[-1].state) | map(select(.=="APPROVED")) | length')
+            # Aprobaciones
+            APPROVALS=$(gh api "repos/${OWNER_REPO}/pulls/${PR}/reviews" \
+              --jq '[ group_by(.user.login) | map(.[-1].state) | map(select(.=="APPROVED")) | length ] | add')
 
-            # SHA + checks
-            SHA=$(gh pr view "$PR" --repo "$REPO" --json headRefOid --jq .headRefOid)
-            CHECKS_STATE=$(gh api "repos/${REPO}/commits/${SHA}/status" --jq .state)
+            # SHA del head
+            SHA=$(gh api "repos/${OWNER_REPO}/pulls/${PR}" --jq .head.sha)
 
-            # Mergeable
-            MERGEABLE_STATE=$(gh api "repos/${REPO}/pulls/${PR}" --jq .mergeable_state)
+            # Checks combinados
+            CHECKS_STATE=$(gh api "repos/${OWNER_REPO}/commits/${SHA}/status" --jq .state)
+
+            # Estado mergeable
+            MERGEABLE_STATE=$(gh api "repos/${OWNER_REPO}/pulls/${PR}" --jq .mergeable_state)
 
             echo "📊 Comentarios: $COMMENTS | Approvals: $APPROVALS | Checks: $CHECKS_STATE | Mergeable: $MERGEABLE_STATE"
 
             if [[ "$COMMENTS" -ge 1 && "$APPROVALS" -ge 1 && "$CHECKS_STATE" == "success" ]]; then
               case "$MERGEABLE_STATE" in
                 clean|unstable|has_hooks)
-                  echo "✅ Cumple criterios. Haciendo merge (squash) y borrando rama…"
+                  echo "✅ Cumple criterios. Mergeando (squash + delete branch)..."
                   if [[ -z "${GH_PAT:-}" ]]; then
                     echo "❌ GH_PAT no configurado. Crea el secret GH_PAT para mergear como tu usuario."
                     exit 1
                   fi
-                  GH_TOKEN="$GH_PAT" gh pr merge "$PR" --repo "$REPO" --squash --delete-branch \
-                    --subject "$(gh pr view "$PR" --repo "$REPO" --json title --jq .title)" || \
-                    echo "⚠️ No se pudo mergear PR #$PR (posible condición de protección de rama)."
+
+                  GH_TOKEN="$GH_PAT" gh pr merge "$PR" --repo "$OWNER_REPO" --squash --delete-branch \
+                    --subject "$(gh api "repos/${OWNER_REPO}/pulls/${PR}" --jq .title)"
+
+                  gh pr comment "$PR" --repo "$OWNER_REPO" --body \
+                    "✅ **GotaBot:** PR mergeado automáticamente por @AngelGota (comentarios y approvals mínimos cumplidos)."
                   ;;
                 *)
                   echo "⛔ No mergeable todavía (estado: $MERGEABLE_STATE). Se omite."
