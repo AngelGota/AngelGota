@@ -48,7 +48,7 @@ jobs:
           fi
 
       - name: Crear PRs faltantes (feature/* → main) + reviewers
-        if: steps.guard.outputs.open_feature_prs == '0'  # solo si NO hay ninguno abierto
+        if: steps.guard.outputs.open_feature_prs == '0'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           REPO: ${{ github.repository }}
@@ -75,28 +75,37 @@ jobs:
           IFS=',' read -r -a LARR <<< "${LABELS}"
           for L in "${LARR[@]}"; do ensure_label "$L"; done
 
-          # Ramas remotas feature/*
-          mapfile -t BRANCHES < <(git ls-remote --heads "https://github.com/${REPO}.git" 'refs/heads/feature/*' \
-                                | awk '{print $2}' | sed 's@refs/heads/@@')
+          # Ramas remotas feature/*  (usar URL autenticada por si el repo es privado)
+          REMOTE_URL="https://x-access-token:${GH_TOKEN}@github.com/${REPO}.git"
+          mapfile -t BRANCHES < <(git ls-remote --heads "${REMOTE_URL}" 'refs/heads/feature/*' \
+                                  | awk '{print $2}' | sed 's@refs/heads/@@')
+          echo "🌿 Ramas feature/* detectadas: ${#BRANCHES[@]}"
+          printf '%s\n' "${BRANCHES[@]}" | sed 's/^/  - /' || true
 
           if [[ ${#BRANCHES[@]} -eq 0 ]]; then
             echo "No hay ramas feature/*"; exit 0
           fi
 
+          git remote add origin "${REMOTE_URL}" 2>/dev/null || true
+          git fetch --no-tags --quiet origin
+
           for HEAD in "${BRANCHES[@]}"; do
-            # 1) ¿PR abierto ya para esta rama?
+            [[ -z "$HEAD" ]] && continue
+
+            # 1) ¿Ya hay PR abierto para esta rama?
             EXISTE=$(gh pr list --repo "${REPO}" --head "${HEAD}" --base "main" --state open \
                        --json number --jq '.[0].number' || true)
             if [[ -n "${EXISTE}" ]]; then
-              echo "✔ PR ya existe para ${HEAD} (#${EXISTE})"
+              echo "✔ Ya existe PR para ${HEAD} (#${EXISTE})"
               continue
             fi
 
-            # 2) ¿Rama adelantada vs main?
+            # 2) ¿HEAD tiene cambios vs main?
             git fetch --no-tags --quiet origin "${HEAD}" main
             AHEAD=$(git rev-list --left-right --count "origin/main...origin/${HEAD}" | awk '{print $2}')
+            echo "↔ ${HEAD} ahead de main: ${AHEAD} commits"
             if [[ "${AHEAD}" -eq 0 ]]; then
-              echo "⏭ Sin cambios vs main en ${HEAD}"
+              echo "⏭ Sin cambios vs main en ${HEAD} — no se crea PR."
               continue
             fi
 
@@ -111,15 +120,17 @@ jobs:
               --assignee "${ASSIGNEES}" \
               --reviewer "${REVIEWERS}"
 
-            # 4) Añadir etiquetas
+            # 4) Etiquetas
             PRNUM=$(gh pr list --repo "${REPO}" --head "${HEAD}" --base "main" --state open \
-                      --json number --jq '.[0].number')
-            for L in "${LARR[@]}"; do
-              L=$(trim "$L")
-              gh pr edit "${PRNUM}" --repo "${REPO}" --add-label "${L}" || echo "⚠ No pude añadir label ${L}"
-            done
-
-            # Importante: tras crear UNO, salimos para mantener 1 PR a la vez
-            echo "✅ PR #${PRNUM} creado. Se detiene la creación para mantener solo 1 abierto."
-            break
+                      --json number --jq '.[0].number' || echo "")
+            if [[ -n "$PRNUM" ]]; then
+              for L in "${LARR[@]}"; do
+                L=$(trim "$L")
+                gh pr edit "${PRNUM}" --repo "${REPO}" --add-label "${L}" || echo "⚠ No pude añadir label ${L}"
+              done
+              echo "✅ PR #${PRNUM} creado. Se detiene para mantener solo 1 abierto."
+              break
+            else
+              echo "⚠ PR no encontrado tras crear; se continúa con la siguiente rama."
+            fi
           done
