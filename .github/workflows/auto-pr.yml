@@ -1,5 +1,9 @@
-name: Auto Create Pull Request
+name: Auto PR para todas las feature/*
+
 on:
+  schedule:
+    - cron: "*/10 * * * *"  # cada 10 min (UTC)
+  workflow_dispatch:
   push:
     branches:
       - 'feature/**'
@@ -9,33 +13,43 @@ permissions:
   pull-requests: write
 
 jobs:
-  create-pr:
+  open-prs:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout (no hace falta histórico)
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }
 
-      - name: Asegurar GH CLI logueado
-        run: echo "ok"
+      - name: Crear PRs faltantes (feature/* → main)
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Crear PR si no existe
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          HEAD_BRANCH: ${{ github.ref_name }}
+          REPO: ${{ github.repository }}
+        shell: bash
         run: |
-          # ¿Ya existe PR abierto desde HEAD_BRANCH hacia main?
-          if gh pr list --head "$HEAD_BRANCH" --base "main" --state open --json number --jq '.[0].number' >/dev/null 2>&1; then
-            echo "PR ya existe, no se crea otro."
-            exit 0
-          fi
+          set -euo pipefail
 
-          # Crear PR
-          gh pr create \
-            --base main \
-            --head "$HEAD_BRANCH" \
-            --title "feat: merge $HEAD_BRANCH → main" \
-            --body "PR automático generado por workflow." \
-            --label "auto-pr" --label "needs-review" \
-            --reviewer "AngelGota" || true
+          # Listar ramas remotas feature/*
+          mapfile -t BRANCHES < <(git ls-remote --heads "https://github.com/${REPO}.git" 'refs/heads/feature/*' | awk '{print $2}' | sed 's@refs/heads/@@')
+
+          for HEAD in "${BRANCHES[@]}"; do
+            # ¿PR abierto ya?
+            if gh pr list --repo "${REPO}" --head "${HEAD}" --base "main" --state open --json number --jq '.[0].number' >/dev/null 2>&1; then
+              echo "✔ PR ya existe para ${HEAD}"
+              continue
+            fi
+
+            # ¿Hay diff real contra main?
+            git fetch origin "${HEAD}" main
+            if git rev-list --left-right --count "origin/main...origin/${HEAD}" | awk '{exit !($2>0)}'; then
+              echo "↗ Crear PR para ${HEAD}"
+              gh pr create \
+                --repo "${REPO}" \
+                --base main \
+                --head "${HEAD}" \
+                --title "feat: ${HEAD} → main" \
+                --body "PR automático generado por auto-pr." \
+                --label "needs-review" \
+                --label "auto-pr" || true
+            else
+              echo "⏭ Sin cambios vs main en ${HEAD}"
+            fi
+          done

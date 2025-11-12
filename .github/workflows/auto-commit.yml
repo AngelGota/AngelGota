@@ -1,8 +1,8 @@
-name: Auto Fill → feature/auto-fill → PR a main
+name: Auto Fill → nueva feature/* y commit
 
 on:
   schedule:
-    - cron: "*/5 * * * *"   # cada 5 minutos (UTC)
+    - cron: "*/15 * * * *"   # cada 15 min (UTC) — ajusta si quieres
   workflow_dispatch:
 
 permissions:
@@ -18,88 +18,26 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
+        with: { fetch-depth: 0 }
 
-      - name: Config Git (autor = tú)
+      - name: Config Git
         run: |
           git config user.name  "AngelGota"
           git config user.email "gangelos630@gmail.com"
 
-      - name: Preparar rama feature/auto-fill
-        run: |
-          git fetch origin main
-          git checkout -B feature/auto-fill origin/main
-
-      - name: Ejecutar lógica (no pintar GOTA; commit inverso)
+      - name: Crear rama nueva feature/* y modificar archivo
         shell: bash
         run: |
           set -euo pipefail
+          TS="$(date -u +'%Y%m%d-%H%M%S')"
+          BRANCH="feature/auto-fill-${TS}"
+          git fetch origin main
+          git checkout -B "${BRANCH}" origin/main
 
-          # ---------- CONFIG ----------
-          START_G="2025-02-09"
-          START_O="2025-06-08"
-          START_T="2025-10-05"
-          START_A="2026-02-08"
-          AVOID_DATES=""
-          COMMIT_PREFIX="chore: auto-fill (not GOTA)"
-          today_utc="$(date -u +%F)"
-          # ---------- FIN CONFIG ----------
-
-          # Funciones auxiliares
-          add_days() { date -u -d "$1 + $2 days" +%F; }
-          emit_dates() {
-            local sunday="$1"; shift
-            local r c ch line d
-            for r in {0..6}; do
-              line="${1}"; shift
-              for c in {0..4}; do
-                ch="${line:$c:1}"
-                if [[ "$ch" == "#" ]]; then
-                  d=$(add_days "$sunday" $(( c*7 + r )))
-                  echo "$d"
-                fi
-              done
-            done
-          }
-
-          # Definición de letras
-          mapfile -t G < <(emit_dates "$START_G" " ### " "#   #" "#    " "#  ##" "#   #" "#   #" " ### ")
-          mapfile -t O < <(emit_dates "$START_O" " ### " "#   #" "#   #" "#   #" "#   #" "#   #" " ### ")
-          mapfile -t T < <(emit_dates "$START_T" "#####" "  #  " "  #  " "  #  " "  #  " "  #  " "  #  ")
-          mapfile -t A < <(emit_dates "$START_A" " ### " "#   #" "#   #" "#####" "#   #" "#   #" "#   #")
-
-          # Saltar si es día prohibido o píxel de GOTA
-          for d in $AVOID_DATES; do [[ "$d" == "$today_utc" ]] && echo "Día evitado." && exit 0; done
-          for d in "${G[@]}" "${O[@]}" "${T[@]}" "${A[@]}"; do [[ "$d" == "$today_utc" ]] && echo "Píxel de GOTA → sin commit" && exit 0; done
-
-          echo "Hoy $today_utc es contorno. Se hace commit."
-
-          # Commit automático
           mkdir -p automation/data
-          DATE_FULL="$(date -u +"%Y-%m-%d %H:%M:%S UTC")"
-          GLOBAL_COUNT=$(git log --grep="$COMMIT_PREFIX" --oneline | wc -l | tr -d ' ')
-          GLOBAL_NEXT=$((GLOBAL_COUNT + 1))
-
-          {
-            echo "✅ Fill (not GOTA pixel)"
-            echo "🗓️  Fecha (UTC): $today_utc"
-            echo "⏱️  Run: $DATE_FULL"
-            echo "🔢 Global: #$GLOBAL_NEXT"
-          } > automation/data/fill_status.md
+          DATE_UTC="$(date -u +"%Y-%m-%d %H:%M:%S UTC")"
+          echo "- run: ${DATE_UTC}" >> automation/data/fill_status.md
 
           git add automation/data/fill_status.md
-          git commit --author="AngelGota <gangelos630@gmail.com>" -m "$COMMIT_PREFIX #$GLOBAL_NEXT ($today_utc) $(date -u +%H:%M:%S)" || exit 0
-          git push -u origin feature/auto-fill
-
-      - name: Crear o actualizar PR hacia main
-        uses: peter-evans/create-pull-request@v6
-        with:
-          branch: feature/auto-fill
-          base: main
-          title: "feat: auto-fill → main"
-          body: "PR automático generado por auto-fill."
-          labels: auto-pr, needs-review
-          assignees: AngelGota
-          author: AngelGota <gangelos630@gmail.com>
-          committer: AngelGota <gangelos630@gmail.com>
+          git commit -m "chore: auto-fill ${TS}"
+          git push -u origin "${BRANCH}"

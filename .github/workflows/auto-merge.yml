@@ -1,7 +1,8 @@
-name: Auto Merge Labeled PRs
+name: Auto-merge (como AngelGota)
+
 on:
   pull_request:
-    types: [opened, reopened, ready_for_review, labeled, synchronize]
+    types: [opened, reopened, labeled, ready_for_review, synchronize, review_requested]
 
 permissions:
   contents: write
@@ -11,21 +12,31 @@ permissions:
 
 jobs:
   merge:
-    # Debe tener la etiqueta 'automerge' y no ser draft
     if: contains(github.event.pull_request.labels.*.name, 'automerge') && github.event.pull_request.draft == false
     runs-on: ubuntu-latest
     steps:
-      - name: Esperar a que pasen checks requeridos
+      - name: Esperar checks
         uses: lewagon/wait-on-check-action@v1.3.3
         with:
           ref: ${{ github.event.pull_request.head.sha }}
           wait-interval: 10
-          allowed-conclusions: success,skipped,neutral
+          allowed-conclusions: success,neutral,skipped
           repo-token: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Hacer merge (squash)
-        uses: peter-evans/merge-pull-request@v2
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}
-          merge-method: squash
-          commit-message: pull-request-title
+      - name: Verificar aprobación
+        env:
+          GH_TOKEN: ${{ secrets.GH_PAT }}
+          REPO: ${{ github.repository }}
+          PR: ${{ github.event.pull_request.number }}
+        run: |
+          APPROVALS=$(gh pr reviews --repo "$REPO" "$PR" --json state --jq '[.[].state] | map(select(.=="APPROVED")) | length')
+          echo "Aprobaciones: $APPROVALS"
+          test "$APPROVALS" -ge 1
+
+      - name: Merge PR (como AngelGota)
+        env:
+          GH_TOKEN: ${{ secrets.GH_PAT }}
+          REPO: ${{ github.repository }}
+          PR: ${{ github.event.pull_request.number }}
+        run: |
+          gh pr merge "$PR" --repo "$REPO" --squash --delete-branch --subject "$(gh pr view "$PR" --json title --jq .title)"
