@@ -2,7 +2,7 @@ name: 1. AutoCommit → AutoCreate feature/*
 
 on:
   schedule:
-    - cron: "*/15 * * * *"   # cada 15 min (UTC) — ajusta si quieres
+    - cron: "*/5 * * * *"   # cada 15 min (UTC) — ajusta si quieres
   workflow_dispatch:
 
 permissions:
