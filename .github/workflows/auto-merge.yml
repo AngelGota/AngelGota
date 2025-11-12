@@ -1,0 +1,68 @@
+name: 4. Auto-merge si hay 1 comentario + 1 approve
+
+on:
+  schedule:
+    - cron: "*/5 * * * *"   # GitHub minimum: cada 5 minutos
+  workflow_dispatch: {}
+
+permissions:
+  contents: write           # necesario para mergear
+  pull-requests: write
+  checks: read
+  statuses: read
+  issues: read
+
+jobs:
+  scan-and-merge:
+    runs-on: ubuntu-latest
+    env:
+      REPO: ${{ github.repository }}
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}   # lecturas
+      GH_PAT:   ${{ secrets.GH_PAT }}         # merge como tu usuario
+    steps:
+      - name: Verificar PRs abiertos y mergear si cumplen
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          # Lista PRs abiertos (no draft)
+          mapfile -t PRS < <(gh pr list --repo "$REPO" --state open --json number,isDraft \
+                              --jq '.[] | select(.isDraft==false) | .number')
+
+          [[ ${#PRS[@]} -eq 0 ]] && { echo "No hay PRs abiertos (no draft)."; exit 0; }
+
+          for PR in "${PRS[@]}"; do
+            echo "---- Evaluando PR #$PR ----"
+
+            # Comentarios totales del hilo del PR
+            COMMENTS=$(gh pr view "$PR" --repo "$REPO" --json comments --jq '.comments.totalCount')
+
+            # Aprobaciones: contar el ÚLTIMO estado por revisor y quedarnos con APPROVED
+            APPROVALS=$(gh pr reviews "$PR" --repo "$REPO" --json author,state \
+              --jq 'group_by(.author.login) | map(.[-1].state) | map(select(.=="APPROVED")) | length')
+
+            # SHA del head y resultado de checks (success/ failure/ pending)
+            SHA=$(gh pr view "$PR" --repo "$REPO" --json headRefOid --jq .headRefOid)
+            CHECKS_STATE=$(gh api "repos/${REPO}/commits/${SHA}/status" --jq .state)
+
+            # Estado mergeable del PR (clean/blocked/dirty/unstable/draft/unknown)
+            MERGEABLE_STATE=$(gh api "repos/${REPO}/pulls/${PR}" --jq .mergeable_state)
+
+            echo "Comentarios: $COMMENTS | Approvals: $APPROVALS | Checks: $CHECKS_STATE | mergeable_state: $MERGEABLE_STATE"
+
+            # Reglas mínimas
+            if [[ "$COMMENTS" -ge 1 && "$APPROVALS" -ge 1 && "$CHECKS_STATE" == "success" ]]; then
+              case "$MERGEABLE_STATE" in
+                clean|unstable|has_hooks)
+                  echo "✅ Cumple criterios. Haciendo merge (squash) y borrando rama…"
+                  GH_TOKEN="$GH_PAT" gh pr merge "$PR" --repo "$REPO" --squash --delete-branch \
+                    --subject "$(gh pr view "$PR" --repo "$REPO" --json title --jq .title)"
+                  ;;
+                *)
+                  echo "⛔ No mergeable todavía (estado: $MERGEABLE_STATE). Se omite."
+                  ;;
+              esac
+            else
+              echo "⏭ No cumple mínimos (comentarios>=1, approvals>=1, checks=success)."
+            fi
+          done
