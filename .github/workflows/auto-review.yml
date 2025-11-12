@@ -1,0 +1,124 @@
+name: 3. Auto review + AutoCommentGotaBot + AutoApprove
+
+on:
+  schedule:
+    - cron: "*/5 * * * *"
+  pull_request:
+    types: [opened, reopened, ready_for_review, synchronize]
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+  pull-requests: write
+  issues: read
+  checks: read
+  statuses: read
+
+jobs:
+  # === Para eventos de PR ===
+  on-pr-event:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    env:
+      REPO: ${{ github.repository }}
+      PR: ${{ github.event.pull_request.number }}
+    steps:
+      - name: Hechos del PR (estado, reviews, comentario)
+        id: facts
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          SHA=${{ github.event.pull_request.head.sha }}
+
+          # Estado de checks del último commit del PR
+          STATE=$(gh api repos/${REPO}/commits/${SHA}/status --jq '.state // "empty"' || echo "empty")
+
+          # ¿Ya existe comentario de GotaBot?
+          COMMENT_EXISTS=$(gh api repos/${REPO}/issues/${PR}/comments --jq \
+            '[ .[].body | tostring | contains("GotaBot – Generic Review") ] | any')
+
+          # Reviews (usamos gh api por compatibilidad)
+          APPROVED=$(gh api repos/${REPO}/pulls/${PR}/reviews --jq 'map(.state) | any(.=="APPROVED")' || echo false)
+          CHANGES=$(gh api repos/${REPO}/pulls/${PR}/reviews --jq 'map(.state) | any(.=="CHANGES_REQUESTED")' || echo false)
+
+          echo "state=$STATE" >> "$GITHUB_OUTPUT"
+          echo "comment_exists=$COMMENT_EXISTS" >> "$GITHUB_OUTPUT"
+          echo "approved=$APPROVED" >> "$GITHUB_OUTPUT"
+          echo "changes=$CHANGES" >> "$GITHUB_OUTPUT"
+          echo "STATE=$STATE | APPROVED=$APPROVED | CHANGES=$CHANGES | COMMENT=$COMMENT_EXISTS"
+
+      # 1) Aprobar primero (si procede)
+      - name: Aprobar como AngelGota
+        if: steps.facts.outputs.changes == 'false' && steps.facts.outputs.approved == 'false' && env.GH_PAT != ''
+        env:
+          GH_TOKEN: ${{ secrets.GH_PAT }}
+          GH_PAT: ${{ secrets.GH_PAT }}
+        run: |
+          gh pr review "$PR" --repo "$REPO" --approve --body "Auto-approval by AngelGota (state=${{ steps.facts.outputs.state }})."
+
+      # 2) Comentar después (si falta)
+      - name: Comentario GotaBot
+        if: steps.facts.outputs.comment_exists != 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh pr comment "$PR" --repo "$REPO" --body $'🤖 **GotaBot – Generic Review**\n• Estado de checks: `${{ steps.facts.outputs.state }}`\n• Autor: @${{ github.actor }}\n\n> Revisión automática ejecutada.'
+
+  # === Backfill manual y por cron ===
+  backfill-open-prs:
+    if: github.event_name == 'workflow_dispatch' || github.event_name == 'schedule'
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      GH_PAT: ${{ secrets.GH_PAT }}
+      REPO: ${{ github.repository }}
+    steps:
+      - name: Listar PRs abiertos
+        id: list
+        run: |
+          gh pr list --repo "$REPO" --state open --json number --jq '.[].number' > prs.txt || true
+          echo "prs<<EOF" >> $GITHUB_OUTPUT; cat prs.txt >> $GITHUB_OUTPUT; echo "EOF" >> $GITHUB_OUTPUT
+          echo "Open PRs:"; cat prs.txt || true
+
+      - name: Procesar PRs (aprobar → comentar)
+        if: steps.list.outputs.prs != ''
+        run: |
+          set -euo pipefail
+          while read -r PR; do
+            [[ -z "$PR" ]] && continue
+            echo "== PR #$PR =="
+
+            SHA=$(gh pr view "$PR" --repo "$REPO" --json headRefOid --jq .headRefOid 2>/dev/null || echo "")
+            STATE="empty"
+            if [[ -n "$SHA" ]]; then
+              STATE=$(gh api repos/${REPO}/commits/${SHA}/status --jq '.state // "empty"' || echo "empty")
+            fi
+            echo "Checks state: $STATE"
+
+            COMMENT_EXISTS=$(gh api repos/${REPO}/issues/${PR}/comments --jq \
+              '[ .[].body | tostring | contains("GotaBot – Generic Review") ] | any' || echo false)
+            APPROVED=$(gh api repos/${REPO}/pulls/${PR}/reviews --jq 'map(.state) | any(.=="APPROVED")' || echo false)
+            CHANGES=$(gh api repos/${REPO}/pulls/${PR}/reviews --jq 'map(.state) | any(.=="CHANGES_REQUESTED")' || echo false)
+
+            if [[ "$CHANGES" == "true" ]]; then
+              gh pr comment "$PR" --repo "$REPO" --body "🔎 GotaBot: *changes requested* detectado. No se aprueba."
+              continue
+            fi
+
+            # 1) Aprobar primero si no hay APPROVED y hay PAT
+            if [[ "$APPROVED" != "true" && -n "${GH_PAT:-}" ]]; then
+              GH_TOKEN="$GH_PAT" gh pr review "$PR" --repo "$REPO" --approve --body "Auto-approval by AngelGota (state=$STATE)."
+              echo "Aprobado."
+            else
+              echo "Ya aprobado o falta GH_PAT."
+            fi
+
+            # 2) Comentar después si falta
+            if [[ "$COMMENT_EXISTS" != "true" ]]; then
+              gh pr comment "$PR" --repo "$REPO" --body $'🤖 **GotaBot – Generic Review**\n• Estado de checks: '"$STATE"$'\n\n> Revisión automática ejecutada (backfill).'
+              echo "Comentado."
+            else
+              echo "Comentario ya existente."
+            fi
+          done < prs.txt

@@ -1,8 +1,8 @@
-name: Auto PR para todas las feature/*
+name: 2. AutoPullRequest for the feature/*
 
 on:
   schedule:
-    - cron: "*/6 * * * *"  # cada 10 min (UTC)
+    - cron: "*/5 * * * *"  # cada 10 min (UTC)
   workflow_dispatch:
   push:
     branches:
@@ -23,24 +23,29 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}     # gh usa GH_TOKEN/GITHUB_TOKEN
           REPO: ${{ github.repository }}
-          REVIEWERS: AngelGota                      # separa por coma si hay más: user1,user2
+          REVIEWERS: AngelGota                      # separa por coma: user1,user2
           ASSIGNEES: AngelGota
-          LABELS: needs-review,auto-pr              # crea si no existen
+          LABELS: needs-review,auto-pr
         shell: bash
         run: |
           set -euo pipefail
 
+          trim() { echo "$1" | sed 's/^ *//; s/ *$//'; }
+
           ensure_label() {
-            local name="$1"
-            if ! gh label list --repo "${REPO}" --search "^${name}$" --json name --jq '.[0].name' >/dev/null 2>&1; then
+            local name="$(trim "$1")"
+            # ¡Chequear salida, no exit code!
+            local found
+            found="$(gh label list --repo "${REPO}" --search "^${name}$" --json name --jq '.[0].name' || true)"
+            if [[ -z "$found" ]]; then
               echo "➕ Creando label: ${name}"
-              gh label create "${name}" --repo "${REPO}" --color "666666" --description "auto" || true
+              gh label create "${name}" --repo "${REPO}" --color "666666" --description "auto" >/dev/null 2>&1 || true
             fi
           }
 
-          # Asegura labels requeridos (evita 'not found')
+          # Asegura etiquetas requeridas
           IFS=',' read -r -a LARR <<< "${LABELS}"
-          for L in "${LARR[@]}"; do ensure_label "${L}"; done
+          for L in "${LARR[@]}"; do ensure_label "$L"; done
 
           # Listar ramas remotas feature/*
           mapfile -t BRANCHES < <(git ls-remote --heads "https://github.com/${REPO}.git" 'refs/heads/feature/*' \
@@ -67,7 +72,7 @@ jobs:
               continue
             fi
 
-            # 3) Crear PR (sin labels para no fallar), luego etiquetar/asignar/reviewers
+            # 3) Crear PR
             echo "↗ Crear PR para ${HEAD}"
             gh pr create \
               --repo "${REPO}" \
@@ -78,11 +83,14 @@ jobs:
               --assignee "${ASSIGNEES}" \
               --reviewer "${REVIEWERS}"
 
-            # Obtener número del PR recién creado
+            # 4) Tomar número del PR recién creado
             PRNUM=$(gh pr list --repo "${REPO}" --head "${HEAD}" --base "main" --state open \
                       --json number --jq '.[0].number')
             echo "PR #${PRNUM} creado para ${HEAD}"
 
-            # Añadir labels ahora que existen seguro
-            gh pr edit "${PRNUM}" --repo "${REPO}" --add-label "${LABELS}"
+            # 5) Añadir etiquetas una por una (sin comas)
+            for L in "${LARR[@]}"; do
+              L=$(trim "$L")
+              gh pr edit "${PRNUM}" --repo "${REPO}" --add-label "${L}" || echo "⚠ No pude añadir label ${L}"
+            done
           done
