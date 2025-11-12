@@ -1,0 +1,81 @@
+name: Auto-assign + Validación de review + Comentario GotaBot + Auto-approve
+
+on:
+  pull_request:
+    types: [opened, reopened, ready_for_review, synchronize]
+
+permissions:
+  contents: read
+  pull-requests: write
+  checks: read
+  statuses: read
+
+jobs:
+  assign-and-approve:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Auto-assign y solicitar review
+        uses: actions-ecosystem/action-add-assignees@v1
+        with:
+          assignees: AngelGota
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Solicitar reviewers
+        uses: actions-ecosystem/action-request-reviewers@v1
+        with:
+          reviewers: AngelGota
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Esperar a que pasen los checks
+        uses: lewagon/wait-on-check-action@v1.3.3
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          wait-interval: 10
+          allowed-conclusions: success,neutral,skipped
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+
+      # --- Comentario genérico "GotaBot" (se publica como github-actions[bot]) ---
+      - name: Dejar comentario genérico de revisión (GotaBot)
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+          PR: ${{ github.event.pull_request.number }}
+        run: |
+          gh pr comment "$PR" --repo "$REPO" --body \
+          "🤖 **GotaBot – Generic Review**
+          \n• CI ✓
+          \n• Base: \`main\`
+          \n• Autor: @${{ github.actor }}
+          \n\n> Revisión automática completada. Si necesitas cambios, responde con *changes requested*."
+
+      # --- Validar estado de reviews: si hay CHANGES_REQUESTED, NO aprobar ni etiquetar ---
+      - name: Validar que no existan 'changes requested'
+        id: check_reviews
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+          PR: ${{ github.event.pull_request.number }}
+        run: |
+          STATE=$(gh pr reviews --repo "$REPO" "$PR" --json state --jq '[.[].state] | any(.=="CHANGES_REQUESTED")')
+          echo "changes_requested=$STATE" >> $GITHUB_OUTPUT
+
+      # --- Aprobar como tu usuario real (PAT) si NO hay 'changes requested' ---
+      - name: Aprobar PR como AngelGota
+        if: steps.check_reviews.outputs.changes_requested == 'false'
+        env:
+          GH_TOKEN: ${{ secrets.GH_PAT }}      # PAT de tu usuario
+          REPO: ${{ github.repository }}
+          PR: ${{ github.event.pull_request.number }}
+        run: |
+          gh pr review "$PR" --repo "$REPO" --approve --body "Auto-approval by AngelGota (CI checks OK)."
+
+      # --- Etiquetar automerge solo si se aprobó (y no hay 'changes requested') ---
+      - name: Etiquetar automerge
+        if: steps.check_reviews.outputs.changes_requested == 'false'
+        uses: actions-ecosystem/action-add-labels@v1
+        with:
+          labels: automerge
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
