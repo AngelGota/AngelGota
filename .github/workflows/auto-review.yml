@@ -1,34 +1,23 @@
-name: Auto-assign + Validación de review + Comentario GotaBot + Auto-approve
+name: Validación de review + Comentario GotaBot + Auto-approve + Merge
 
 on:
   pull_request:
     types: [opened, reopened, ready_for_review, synchronize]
+  workflow_dispatch: {}
 
 permissions:
-  contents: read
+  contents: write        # para poder mergear
   pull-requests: write
   checks: read
   statuses: read
 
 jobs:
-  assign-and-approve:
+  on-pr-event:
+    if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
     steps:
-      - name: Auto-assign y solicitar review
-        uses: actions-ecosystem/action-add-assignees@v1
-        with:
-          assignees: AngelGota
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Solicitar reviewers
-        uses: actions-ecosystem/action-request-reviewers@v1
-        with:
-          reviewers: AngelGota
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Esperar a que pasen los checks
+      # (Opcional) espera a que los checks terminen ok
+      - name: Esperar checks OK
         uses: lewagon/wait-on-check-action@v1.3.3
         with:
           ref: ${{ github.event.pull_request.head.sha }}
@@ -36,46 +25,88 @@ jobs:
           allowed-conclusions: success,neutral,skipped
           repo-token: ${{ secrets.GITHUB_TOKEN }}
 
-      # --- Comentario genérico "GotaBot" (se publica como github-actions[bot]) ---
-      - name: Dejar comentario genérico de revisión (GotaBot)
+      - name: Comentario GotaBot
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           REPO: ${{ github.repository }}
           PR: ${{ github.event.pull_request.number }}
         run: |
-          gh pr comment "$PR" --repo "$REPO" --body \
-          "🤖 **GotaBot – Generic Review**
-          \n• CI ✓
-          \n• Base: \`main\`
-          \n• Autor: @${{ github.actor }}
-          \n\n> Revisión automática completada. Si necesitas cambios, responde con *changes requested*."
+          gh pr comment "$PR" --repo "$REPO" --body $'🤖 **GotaBot – Generic Review**\n• CI ✓\n• Base: `main`\n• Autor: @${{ github.actor }}\n\n> Revisión automática completada.'
 
-      # --- Validar estado de reviews: si hay CHANGES_REQUESTED, NO aprobar ni etiquetar ---
-      - name: Validar que no existan 'changes requested'
-        id: check_reviews
+      - name: Bloquear si hay CHANGES_REQUESTED
+        id: revs
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           REPO: ${{ github.repository }}
           PR: ${{ github.event.pull_request.number }}
         run: |
-          STATE=$(gh pr reviews --repo "$REPO" "$PR" --json state --jq '[.[].state] | any(.=="CHANGES_REQUESTED")')
-          echo "changes_requested=$STATE" >> $GITHUB_OUTPUT
+          CR=$(gh pr reviews --repo "$REPO" "$PR" --json state --jq '[.[].state] | any(.=="CHANGES_REQUESTED")')
+          echo "changes=$CR" >> $GITHUB_OUTPUT
+          [[ "$CR" == "true" ]] && echo "Hay CHANGES_REQUESTED; no se aprobará/mergeará."
 
-      # --- Aprobar como tu usuario real (PAT) si NO hay 'changes requested' ---
-      - name: Aprobar PR como AngelGota
-        if: steps.check_reviews.outputs.changes_requested == 'false'
+      - name: Aprobar como AngelGota
+        if: steps.revs.outputs.changes == 'false'
         env:
-          GH_TOKEN: ${{ secrets.GH_PAT }}      # PAT de tu usuario
+          GH_TOKEN: ${{ secrets.GH_PAT }}   # tu PAT
           REPO: ${{ github.repository }}
           PR: ${{ github.event.pull_request.number }}
         run: |
-          gh pr review "$PR" --repo "$REPO" --approve --body "Auto-approval by AngelGota (CI checks OK)."
+          gh pr review "$PR" --repo "$REPO" --approve --body "Auto-approval by AngelGota (CI OK)."
 
-      # --- Etiquetar automerge solo si se aprobó (y no hay 'changes requested') ---
-      - name: Etiquetar automerge
-        if: steps.check_reviews.outputs.changes_requested == 'false'
-        uses: actions-ecosystem/action-add-labels@v1
-        with:
-          labels: automerge
+      - name: Merge (squash) y borrar rama
+        if: steps.revs.outputs.changes == 'false'
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.GH_PAT }}   # tu PAT (merge como tu usuario)
+          REPO: ${{ github.repository }}
+          PR: ${{ github.event.pull_request.number }}
+        run: |
+          gh pr merge "$PR" --repo "$REPO" --squash --delete-branch --subject "$(gh pr view "$PR" --repo "$REPO" --json title --jq .title)"
+
+  backfill-open-prs:
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      REPO: ${{ github.repository }}
+      GH_PAT: ${{ secrets.GH_PAT }}
+    steps:
+      - name: Listar PRs abiertos
+        id: list
+        run: |
+          gh pr list --repo "$REPO" --state open --json number --jq '.[].number' > prs.txt || true
+          echo "prs<<EOF" >> $GITHUB_OUTPUT; cat prs.txt >> $GITHUB_OUTPUT; echo "EOF" >> $GITHUB_OUTPUT
+          echo "Open PRs:"; cat prs.txt || true
+
+      - name: Procesar PRs
+        if: steps.list.outputs.prs != ''
+        run: |
+          set -euo pipefail
+          wait_checks () {
+            local sha="$1" tries=0 max=120
+            while :; do
+              state=$(gh api repos/${REPO}/commits/${sha}/status --jq .state)
+              echo "Checks state: $state"
+              [[ "$state" == "success" ]] && return 0
+              [[ "$state" == "failure" ]] && { echo "Checks failed"; return 1; }
+              ((tries++)); [[ $tries -ge $max ]] && { echo "Timeout"; return 1; }
+              sleep 5
+            done
+          }
+          while read -r PR; do
+            [[ -z "$PR" ]] && continue
+            echo "== PR #$PR =="
+
+            gh pr comment "$PR" --repo "$REPO" --body $'🤖 **GotaBot – Generic Review**\n• Backfill\n\n> Esperando checks...'
+            SHA=$(gh pr view "$PR" --repo "$REPO" --json headRefOid --jq .headRefOid)
+            wait_checks "$SHA"
+
+            CR=$(gh pr reviews --repo "$REPO" "$PR" --json state --jq '[.[].state] | any(.=="CHANGES_REQUESTED")')
+            if [[ "$CR" == "true" ]]; then
+              gh pr comment "$PR" --repo "$REPO" --body "🔎 GotaBot: *changes requested* detectado. No se aprueba."
+              continue
+            fi
+
+            GH_TOKEN="$GH_PAT" gh pr review "$PR" --repo "$REPO" --approve --body "Auto-approval by AngelGota (backfill)."
+            GH_TOKEN="$GH_PAT" gh pr merge  "$PR" --repo "$REPO" --squash --delete-branch --subject "$(gh pr view "$PR" --repo "$REPO" --json title --jq .title)"
+            gh pr comment "$PR" --repo "$REPO" --body "✅ GotaBot: Aprobado y mergeado por AngelGota."
+          done < prs.txt
