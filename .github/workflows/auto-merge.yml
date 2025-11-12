@@ -66,20 +66,20 @@ jobs:
             done
           }
 
-          wait_mergeable () {
-            local pr="$1" tries=0 max=30
-            while :; do
-              local ms; ms=$(gh api "repos/${OWNER_REPO}/pulls/${pr}" --jq .mergeable_state)
-              if [[ "$ms" != "unknown" && -n "$ms" ]]; then
-                echo "ℹ️ mergeable_state=$ms"
-                echo "$ms"
-                return 0
-              fi
-              ((tries++))
-              [[ $tries -ge $max ]] && { echo "⚠️ mergeable_state sigue 'unknown'"; echo "unknown"; return 0; }
-              sleep 1
-            done
-          }
+            wait_mergeable () {
+              local pr="$1" tries=0 max=30
+              while :; do
+                local ms; ms=$(gh api "repos/${OWNER_REPO}/pulls/${pr}" --jq .mergeable_state)
+                if [[ "$ms" != "unknown" && -n "$ms" ]]; then
+                  echo "$ms"   # <-- deja solo esto (quita el echo anterior con el ícono)
+                  return 0
+                fi
+                ((tries++))
+                [[ $tries -ge $max ]] && { echo "unknown"; return 0; }
+                sleep 1
+              done
+            }
+                
 
           for PR in "${PRS[@]}"; do
             echo "---- Evaluando PR #$PR ----"
