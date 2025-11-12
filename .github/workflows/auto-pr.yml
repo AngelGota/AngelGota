@@ -21,35 +21,44 @@ jobs:
 
       - name: Crear PRs faltantes (feature/* → main)
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}   # gh usa GH_TOKEN o GITHUB_TOKEN
           REPO: ${{ github.repository }}
         shell: bash
         run: |
           set -euo pipefail
-
+        
           # Listar ramas remotas feature/*
-          mapfile -t BRANCHES < <(git ls-remote --heads "https://github.com/${REPO}.git" 'refs/heads/feature/*' | awk '{print $2}' | sed 's@refs/heads/@@')
-
+          mapfile -t BRANCHES < <(git ls-remote --heads "https://github.com/${REPO}.git" 'refs/heads/feature/*' \
+                                | awk '{print $2}' | sed 's@refs/heads/@@')
+        
           for HEAD in "${BRANCHES[@]}"; do
-            # ¿PR abierto ya?
-            if gh pr list --repo "${REPO}" --head "${HEAD}" --base "main" --state open --json number --jq '.[0].number' >/dev/null 2>&1; then
-              echo "✔ PR ya existe para ${HEAD}"
+            # 1) ¿Ya hay PR abierto? → comprobar por **salida**, no por exit code
+            EXISTE=$(gh pr list --repo "${REPO}" --head "${HEAD}" --base "main" --state open \
+                       --json number --jq '.[0].number' || true)
+            if [[ -n "${EXISTE}" ]]; then
+              echo "✔ PR ya existe para ${HEAD} (#${EXISTE})"
               continue
             fi
-
-            # ¿Hay diff real contra main?
-            git fetch origin "${HEAD}" main
-            if git rev-list --left-right --count "origin/main...origin/${HEAD}" | awk '{exit !($2>0)}'; then
-              echo "↗ Crear PR para ${HEAD}"
-              gh pr create \
-                --repo "${REPO}" \
-                --base main \
-                --head "${HEAD}" \
-                --title "feat: ${HEAD} → main" \
-                --body "PR automático generado por auto-pr." \
-                --label "needs-review" \
-                --label "auto-pr" || true
-            else
+        
+            # 2) ¿Hay diff real contra main?
+            git fetch --no-tags --quiet origin "${HEAD}" main
+            # commits únicos en la rama (lado derecho del triple-dot)
+            AHEAD=$(git rev-list --left-right --count "origin/main...origin/${HEAD}" | awk '{print $2}')
+            if [[ "${AHEAD}" -eq 0 ]]; then
               echo "⏭ Sin cambios vs main en ${HEAD}"
+              continue
             fi
+        
+            # 3) Crear PR
+            echo "↗ Crear PR para ${HEAD}"
+            URL=$(gh pr create \
+              --repo "${REPO}" \
+              --base main \
+              --head "${HEAD}" \
+              --title "feat: ${HEAD} → main" \
+              --body "PR automático generado por auto-pr." \
+              --label "needs-review" --label "auto-pr" \
+              --json url --jq .url)
+        
+            echo "✅ PR creado: ${URL}"
           done
