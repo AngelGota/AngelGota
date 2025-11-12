@@ -2,7 +2,7 @@ name: Auto PR para todas las feature/*
 
 on:
   schedule:
-    - cron: "*/10 * * * *"  # cada 10 min (UTC)
+    - cron: "*/6 * * * *"  # cada 10 min (UTC)
   workflow_dispatch:
   push:
     branches:
