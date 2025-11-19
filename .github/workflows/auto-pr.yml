@@ -2,7 +2,7 @@ name: 2. AutoPullRequest for the feature/*
 
 on:
   schedule:
-    - cron: "*/5 * * * *"  # cada 5 min
+    - cron: "*/15 * * * *"  # cada 5 min
   workflow_dispatch:
   push:
     branches:
