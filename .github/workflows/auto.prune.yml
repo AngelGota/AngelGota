@@ -1,0 +1,92 @@
+name: 5. Prune old branches (keep 10)
+
+on:
+  schedule:
+    - cron: "17 3 * * *"
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+  pull-requests: read
+
+concurrency:
+  group: prune-branches
+  cancel-in-progress: true
+
+jobs:
+  prune:
+    runs-on: ubuntu-latest
+    env:
+      REPO: ${{ github.repository }}
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      BRANCH_PATTERN: "feature/*"
+      KEEP_COUNT: "10"
+      DRY_RUN: "false"
+      EXTRA_PROTECTED: "develop dev staging release/*"
+    steps:
+      - name: Preparar git/gh
+        run: |
+          sudo apt-get update -y
+          sudo apt-get install -y git gh
+
+      - name: Obtener rama por defecto y ramas protegidas
+        id: meta
+        run: |
+          DEF=$(gh repo view "$REPO" --json defaultBranchRef --jq .defaultBranchRef.name)
+          echo "default_branch=$DEF" >> "$GITHUB_OUTPUT"
+
+      - name: Listar ramas que cumplen el patrón (ordenadas por fecha de último commit)
+        id: list
+        run: |
+          rm -rf repo
+          git init repo
+          cd repo
+          git remote add origin "https://x-access-token:${GH_TOKEN}@github.com/${REPO}.git"
+          git -c protocol.version=2 fetch --no-tags --filter=blob:none origin "+refs/heads/*:refs/remotes/origin/*"
+          PATTERN="${BRANCH_PATTERN}"
+          mapfile -t ALL < <(git for-each-ref --format='%(committerdate:iso8601)%09%(refname:short)' "refs/remotes/origin/")
+          MATCHED=()
+          while IFS=$'\t' read -r DATE REF; do
+            BR="${REF#origin/}"
+            case "$BR" in
+              $PATTERN) MATCHED+=("$DATE\t$BR");;
+            esac
+          done < <(printf '%s\n' "${ALL[@]}")
+          SORTED=$(printf '%b\n' "${MATCHED[@]}" | sort -r)
+          NAMES=$(printf '%b\n' "$SORTED" | awk -F'\t' '{print $2}')
+          echo "$NAMES" > ../branches.txt
+          echo "count=$(printf '%s\n' "$NAMES" | sed '/^$/d' | wc -l | tr -d ' ')" >> "$GITHUB_OUTPUT"
+          cd ..
+
+      - name: Podar excedente (mantener solo los más recientes)
+        if: steps.list.outputs.count != '0'
+        env:
+          DEFAULT_BRANCH: ${{ steps.meta.outputs.default_branch }}
+        run: |
+          KEEP=${KEEP_COUNT}
+          DRY="${DRY_RUN}"
+          DEF="${DEFAULT_BRANCH}"
+          mapfile -t NAMES < <(sed '/^$/d' branches.txt)
+          TOTAL=${#NAMES[@]}
+          if (( TOTAL <= KEEP )); then exit 0; fi
+          PROTECTED=("$DEF")
+          for p in ${EXTRA_PROTECTED}; do PROTECTED+=("$p"); done
+          TO_DELETE=("${NAMES[@]:KEEP}")
+          for BR in "${TO_DELETE[@]}"; do
+            SKIP_PROTECTED=false
+            for P in "${PROTECTED[@]}"; do
+              case "$BR" in
+                $P) SKIP_PROTECTED=true; break;;
+              esac
+            done
+            if $SKIP_PROTECTED; then continue; fi
+            PRNUM=$(gh pr list --repo "$REPO" --state open --head "$BR" --json number --jq '.[0].number' || echo "")
+            if [[ -n "$PRNUM" ]]; then continue; fi
+            if [[ "$DRY" == "true" ]]; then
+              echo "DRY-RUN: eliminaría $BR"
+            else
+              git push "https://x-access-token:${GH_TOKEN}@github.com/${REPO}.git" --delete "$BR" || {
+                gh api -X DELETE "repos/${REPO}/git/refs/heads/${BR}" || echo "NO se pudo borrar $BR"
+              }
+            fi
+          done
