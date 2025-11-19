@@ -72,6 +72,9 @@ jobs:
           PROTECTED=("$DEF")
           for p in ${EXTRA_PROTECTED}; do PROTECTED+=("$p"); done
           TO_DELETE=("${NAMES[@]:KEEP}")
+
+          cd repo
+
           for BR in "${TO_DELETE[@]}"; do
             SKIP_PROTECTED=false
             for P in "${PROTECTED[@]}"; do
