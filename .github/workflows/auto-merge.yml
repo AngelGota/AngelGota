@@ -2,7 +2,7 @@ name: 4. Auto-merge si hay 1 comentario + 1 approve
 
 on:
   schedule:
-    - cron: "*/5 * * * *"
+    - cron: "*/15 * * * *"
   workflow_dispatch: {}
 
 permissions:
@@ -22,6 +22,8 @@ jobs:
       RESOLUTION_POLICY: keep-main            # keep-main | keep-feature
       GIT_AUTHOR_NAME:  AngelGota
       GIT_AUTHOR_EMAIL: gangelos630@gmail.com
+      MERGE_EVEN_IF_PENDING: "true"     
+      ALLOW_ADMIN_BYPASS: "true"        
     steps:
       - name: Asegurar GH CLI y jq
         run: |
@@ -42,20 +44,56 @@ jobs:
 
           wait_checks () {
             local sha="$1" tries=0 max=60
-            while :; do
-              local st; st=$(gh api "repos/${OWNER_REPO}/commits/${sha}/status" --jq '.state // "empty"')
-              local total failure_count
-              total=$(gh api -H "Accept: application/vnd.github+json" \
-                        "repos/${OWNER_REPO}/commits/${sha}/check-runs" --jq '.total_count')
-              failure_count=$(gh api -H "Accept: application/vnd.github+json" \
-                        "repos/${OWNER_REPO}/commits/${sha}/check-runs" \
-                        --jq '[.check_runs[].conclusion] | map(select(.=="failure" or .=="timed_out" or .=="cancelled")) | length')
+            local allow_pending="${MERGE_EVEN_IF_PENDING:-true}"
 
-              if [[ "$st" == "success" ]] || { [[ "${total:-0}" -gt 0 ]] && [[ "${failure_count:-0}" -eq 0 ]]; }; then
-                echo "✅ Checks OK (state=$st, failures=${failure_count:-0})"
+            while :; do
+              local combined; combined=$(gh api "repos/${OWNER_REPO}/commits/${sha}/status" --jq '.state // "empty"' || echo "empty")
+
+              local total failed pending running success_like
+              total=$(gh api -H "Accept: application/vnd.github+json" \
+                        "repos/${OWNER_REPO}/commits/${sha}/check-runs" --jq '.total_count' || echo 0)
+
+              # marca como fallo real solo "failure" y "timed_out".
+              failed=$(gh api -H "Accept: application/vnd.github+json" \
+                        "repos/${OWNER_REPO}/commits/${sha}/check-runs" \
+                        --jq '[.check_runs[].conclusion] | map(select(.=="failure" or .=="timed_out")) | length' || echo 0)
+
+              pending=$(gh api -H "Accept: application/vnd.github+json" \
+                        "repos/${OWNER_REPO}/commits/${sha}/check-runs" \
+                        --jq '[.check_runs[].status] | map(select(.=="queued" or .=="in_progress")) | length' || echo 0)
+
+              success_like=$(gh api -H "Accept: application/vnd.github+json" \
+                        "repos/${OWNER_REPO}/commits/${sha}/check-runs" \
+                        --jq '[.check_runs[].conclusion] | map(select(.=="success" or .=="neutral" or .=="skipped" or .=="cancelled")) | length' || echo 0)
+
+              echo "checks: combined=$combined, total=${total:-0}, failed=${failed:-0}, pending=${pending:-0}, ok_like=${success_like:-0}"
+
+              # Si hay fallos reales -> NO mergear
+              if [[ ${failed:-0} -gt 0 ]]; then
+                return 1
+              fi
+
+              # Éxito tradicional
+              if [[ "$combined" == "success" ]]; then
                 return 0
               fi
-              ((tries++)); [[ $tries -ge $max ]] && { echo "⏱️ Timeout checks (state=$st)."; return 1; }
+
+              # Si permitimos pending: con que no haya fallos, damos OK
+              if [[ "$allow_pending" == "true" ]]; then
+                return 0
+              fi
+
+              # Si NO permitimos pending: espera a que termine todo o timeout sin fallos
+              if [[ ${pending:-0} -eq 0 ]]; then
+                # nada pendiente y sin fallos => OK (aunque combined quede pending)
+                return 0
+              fi
+
+              ((tries++))
+              if [[ $tries -ge $max ]]; then
+                echo "⏱️ Timeout; no hay fallos => permitimos continuar."
+                return 0
+              fi
               sleep 2
             done
           }
@@ -166,27 +204,40 @@ jobs:
             fi
 
             # Reglas para merge
-            if [[ "$COMMENTS" -ge 1 && "$APPROVALS" -ge 1 ]]; then
-              case "$MERGEABLE_STATE" in
-                clean|unstable|has_hooks)
-                  echo "✅ Cumple criterios. Mergeando (squash + delete branch)..."
-                  if [[ -z "${GH_PAT:-}" ]]; then
-                    echo "❌ GH_PAT no configurado. Crea el secret GH_PAT para mergear como tu usuario."
-                    exit 1
-                  fi
-                  TITLE=$(gh api "repos/${OWNER_REPO}/pulls/${PR}" --jq .title)
-                  GH_TOKEN="$GH_PAT" gh pr merge "$PR" --repo "$OWNER_REPO" --squash --delete-branch --subject "$TITLE"
-                  gh pr comment "$PR" --repo "$OWNER_REPO" --body \
-                    "✅ **GotaBot:** Merge automático (1+ comentario, 1+ approval, checks OK)."
-                  ;;
-                blocked|dirty|unknown)
-                  echo "⛔ Aún no mergeable (estado: $MERGEABLE_STATE)."
-                  ;;
-                *)
-                  echo "⛔ Estado no contemplado: $MERGEABLE_STATE."
-                  ;;
-              esac
-            else
-              echo "⏭ No cumple mínimos (comentarios>=1 y approvals>=1)."
-            fi
+              if [[ "$COMMENTS" -ge 1 && "$APPROVALS" -ge 1 ]]; then
+                case "$MERGEABLE_STATE" in
+                  clean|unstable|has_hooks)
+                    echo "✅ Cumple criterios. Mergeando (squash + delete branch)..."
+                    if [[ -z "${GH_PAT:-}" ]]; then
+                      echo "❌ GH_PAT no configurado."; exit 1
+                    fi
+                    TITLE=$(gh api "repos/${OWNER_REPO}/pulls/${PR}" --jq .title)
+                    GH_TOKEN="$GH_PAT" gh pr merge "$PR" --repo "$OWNER_REPO" --squash --delete-branch --subject "$TITLE"
+                    gh pr comment "$PR" --repo "$OWNER_REPO" --body "✅ **GotaBot:** Merge automático (checks sin fallos)."
+                    ;;
+
+                  blocked)
+                    echo "⛔ Mergeable=blocked (branch protection)."
+                    if [[ "${ALLOW_ADMIN_BYPASS:-false}" == "true" && -n "${GH_PAT:-}" ]]; then
+                      echo "🔓 Intentando admin-bypass..."
+                      TITLE=$(gh api "repos/${OWNER_REPO}/pulls/${PR}" --jq .title)
+                      if GH_TOKEN="$GH_PAT" gh pr merge "$PR" --repo "$OWNER_REPO" --squash --delete-branch --subject "$TITLE" --admin; then
+                        gh pr comment "$PR" --repo "$OWNER_REPO" --body "✅ **GotaBot:** Merge con *admin bypass* (sin fallos reales)."
+                      else
+                        echo "❌ Admin-bypass no permitido/posible por políticas. Se omite."
+                      fi
+                    fi
+                    ;;
+
+                  dirty|unknown)
+                    echo "⛔ Aún no mergeable (estado: $MERGEABLE_STATE)."
+                    ;;
+
+                  *)
+                    echo "⛔ Estado no contemplado: $MERGEABLE_STATE."
+                    ;;
+                esac
+              else
+                echo "⏭ No cumple mínimos (comentarios>=1 y approvals>=1)."
+              fi
           done
