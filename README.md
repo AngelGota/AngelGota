@@ -14,6 +14,9 @@ In addition, I consistently study new technologies to ensure I stay up to date w
 <p align="center">
     <img src="https://skillicons.dev/icons?i=java" />
     <img src="https://skillicons.dev/icons?i=spring" />
+    <img src="https://skills.syvixor.com/api/icons?i=quarkus" />
+    <img src="https://skills.syvixor.com/api/icons?i=azure" />
+    <img src="https://skills.syvixor.com/api/icons?i=sqlserver" />
     <img src="https://skillicons.dev/icons?i=postgres" />
     <img src="https://skillicons.dev/icons?i=nodejs" />
     <img src="https://skillicons.dev/icons?i=express" />
